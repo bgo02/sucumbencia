@@ -216,14 +216,14 @@ function computeMinuta(opts){
     // casos:
     if(minimaAplicada === 'autor'){
       // autora considerada vencida integralmente -> autora arca integralmente com ônus sucumbenciais
-      minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos (${opts.minimoPercent}%), devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
+      minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos, devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
       // réu paga ao autor? Não — réu é vencedor (INSS venceu?) Wait: authorShare=0 => author lost -> author pays all -> pct_to_author=0, pct_to_reu=10
       // portanto: condenar autora a pagar 10% ao reu (sobre condenação? base depende: when benefit conceded, base is condenacao)
       minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor das parcelas vencidas (na forma da Súmula 111). Não há verba devida pelo réu ao autor.\n\n`;
       // AJG handling below
     } else if(minimaAplicada === 'inss'){
       // réu considerado vencido integralmente -> réu paga tudo
-      minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos (${opts.minimoPercent}%), motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
+      minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos, motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
       minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor das parcelas vencidas (na forma da Súmula 111). Não há verba devida pela parte autora ao réu.\n\n`;
     } else {
       // proporcional
@@ -247,11 +247,11 @@ function computeMinuta(opts){
 
     if(minimaAplicada === 'autor'){
       // autora considerada vencida integralmente -> autora paga tudo
-      minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos (${opts.minimoPercent}%), devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
+      minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos, devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
       minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor atualizado da causa. Não há verba devida pelo réu ao autor.\n\n`;
     } else if(minimaAplicada === 'inss'){
       // inss vencido integralmente -> inss pays all
-      minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos (${opts.minimoPercent}%), motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
+      minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos, motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
       minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor atualizado da causa. Não há verba devida pela parte autora ao réu.\n\n`;
     } else {
       // proporcional
