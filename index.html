@@ -2,162 +2,169 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Cálculo de Sucumbência</title>
+<title>Calculadora de Sucumbência Previdenciária</title>
 <style>
     body {
         font-family: Arial, sans-serif;
-        max-width: 900px;
-        margin: auto;
-        padding: 20px;
-        line-height: 1.5;
-        color: #222;
+        margin: 40px;
         background: #fafafa;
+        color: #222;
+        max-width: 900px;
     }
-    h1 { text-align: center; }
-    .box {
-        background: white;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.15);
-        margin-bottom: 20px;
-    }
+    h1 { text-align: center; font-size: 26px; margin-bottom: 20px; }
     textarea, input, select {
-        width: 100%;
-        box-sizing: border-box;
-        margin-top: 6px;
-        margin-bottom: 12px;
-        padding: 10px;
-        border-radius: 6px;
-        border: 1px solid #bbb;
+        width: 100%; padding: 10px; margin-top: 6px; margin-bottom: 16px;
+        border: 1px solid #bbb; border-radius: 4px; font-size: 15px;
     }
     button {
-        padding: 10px 20px;
-        border: none;
-        background: #2a66f7;
-        color: white;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 16px;
+        background: #333; color: #fff; border: none; padding: 12px 18px;
+        font-size: 16px; cursor: pointer; border-radius: 5px;
     }
-    button:hover { opacity: 0.85; }
-    #resultado { white-space: pre-wrap; }
+    button:hover { background: #111; }
+    .result-box {
+        background: #fff; padding: 20px; border-radius: 8px;
+        border: 1px solid #ccc; margin-top: 30px; white-space: pre-wrap;
+    }
 </style>
 </head>
+
 <body>
+<h1>Calculadora de Sucumbência Previdenciária</h1>
 
-<h1>Calculadora de Sucumbência</h1>
+<label><b>1) Valor total da causa (R$)</b></label>
+<input id="valorCausa" type="number" placeholder="Exemplo: 50000">
 
-<div class="box">
-    <label><b>Valor total da causa (R$):</b></label>
-    <input id="valorCausa" type="number" placeholder="Ex.: 50000">
+<label><b>2) Valor pedido a título de danos morais (R$)</b></label>
+<input id="danosMorais" type="number" placeholder="Exemplo: 10000">
 
-    <label><b>Valor atribuído aos danos morais (R$):</b></label>
-    <input id="valorMorais" type="number" placeholder="Ex.: 10000">
+<label><b>3) Períodos discutidos (cole qualquer coisa: tabelas, listas, frases etc.)</b></label>
+<textarea id="periodosBrutos" rows="7" placeholder="Cole aqui os períodos, em qualquer formato. O sistema limpará automaticamente."></textarea>
 
-    <label><b>Valor econômico dos pedidos (períodos etc.) (R$):</b></label>
-    <input id="valorPeriodos" type="number" placeholder="Ex.: 40000">
+<label><b>4) Períodos reconhecidos (cole qualquer formato)</b></label>
+<textarea id="periodosReconhecidos" rows="7" placeholder="Cole apenas os períodos reconhecidos, em qualquer formato."></textarea>
 
-    <label><b>Percentual obtido pela parte autora (% dos pedidos):</b></label>
-    <input id="percentualAutora" type="number" placeholder="Ex.: 62">
+<label><b>5) A parte autora possui AJG?</b></label>
+<select id="ajg">
+    <option value="nao">Não</option>
+    <option value="sim">Sim</option>
+</select>
 
-    <label><b>A parte autora possui AJG?</b></label>
-    <select id="ajg">
-        <option value="nao">Não</option>
-        <option value="sim">Sim</option>
-    </select>
+<label><b>6) Percentual-base dos honorários (ex.: 10)</b></label>
+<input id="percentualHonorarios" type="number" placeholder="10">
 
-    <button onclick="calcular()">Calcular sucumbência</button>
-</div>
+<button onclick="calcular()">Calcular Sucumbência</button>
 
-<div class="box">
-    <h2>Resultado</h2>
-    <div id="resultado"></div>
-</div>
+<div id="resultado" class="result-box"></div>
 
 <script>
-// -------------------------------
-// CÁLCULO
-// -------------------------------
+// --------------------------------------------------------------
+// FUNÇÕES DE LIMPEZA E EXTRAÇÃO DE PERÍODOS
+// --------------------------------------------------------------
+function extrairDatas(texto) {
+    // captura datas dd/mm/yyyy
+    const regex = /(\d{1,2}\/\d{1,2}\/\d{4})\s*(?:a|-|–|—|ao)\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi;
+    let match;
+    const periodos = [];
+    while ((match = regex.exec(texto)) !== null) {
+        periodos.push({ inicio: match[1], fim: match[2] });
+    }
+    return periodos;
+}
 
+function somarDias(periodos) {
+    let total = 0;
+    for (const p of periodos) {
+        const i = new Date(p.inicio.split("/").reverse().join("-"));
+        const f = new Date(p.fim.split("/").reverse().join("-"));
+        if (!isNaN(i) && !isNaN(f) && f >= i) {
+            const dias = (f - i) / (1000 * 60 * 60 * 24) + 1;
+            total += dias;
+        }
+    }
+    return total;
+}
+
+// --------------------------------------------------------------
+// CÁLCULO PRINCIPAL
+// --------------------------------------------------------------
 function calcular() {
-    const valorCausa = Number(document.getElementById("valorCausa").value);
-    const valorMorais = Number(document.getElementById("valorMorais").value);
-    const valorPeriodos = Number(document.getElementById("valorPeriodos").value);
-    const pAutora = Number(document.getElementById("percentualAutora").value);
-    const ajg = document.getElementById("ajg").value;
+    const valorCausa   = Number(document.getElementById("valorCausa").value);
+    const danosMorais  = Number(document.getElementById("danosMorais").value);
+    const ajg          = document.getElementById("ajg").value;
+    const basePercent  = Number(document.getElementById("percentualHonorarios").value);
 
-    if (!valorCausa || !valorMorais || !valorPeriodos || !pAutora) {
-        document.getElementById("resultado").innerText =
-            "Preencha todos os campos com valores numéricos válidos.";
-        return;
+    const todosPeriodos = extrairDatas(document.getElementById("periodosBrutos").value);
+    const reconhecidos  = extrairDatas(document.getElementById("periodosReconhecidos").value);
+
+    const totalDias = somarDias(todosPeriodos);
+    const diasReconhecidos = somarDias(reconhecidos);
+
+    // proporção dos pedidos materiais (períodos)
+    const proporcaoMateriais = totalDias > 0 ? diasReconhecidos / totalDias : 0;
+
+    // cálculo da proporção global da procedência (materiais + danos morais)
+    const valorMateriais = valorCausa - danosMorais;
+
+    let ganhoAutora = 0;
+    if (valorMateriais > 0) {
+        ganhoAutora =
+            (proporcaoMateriais * valorMateriais + danosMoraisReconhecidos(danosMorais, proporcaoMateriais))
+            / valorCausa;
     }
 
-    // proporção dos danos morais no valor total
-    const propMorais = valorMorais / valorCausa;
-    const propPeriodos = valorPeriodos / valorCausa;
+    // sucumbência mínima (<10%)
+    let textoSucumbencia = "";
+    let honorariosAutora = 0;
+    let honorariosINSS = 0;
 
-    // sucumbências brutas
-    const sucAutora = 100 - pAutora;
-    const sucINSS = pAutora;
-
-    // regra da sucumbência mínima (<10%)
-    let texto = "";
-    let autoraPaga = 0;
-    let inssPaga = 0;
-
-    if (sucAutora < 10 && sucINSS >= 10) {
-        // Autora perde menos de 10%
-        inssPaga = 100;
-        autoraPaga = 0;
-        texto += "Reconhece-se sucumbência mínima da parte autora, pois sua perda corresponde a menos de 10% do total. Assim, compete exclusivamente ao INSS suportar os ônus sucumbenciais.\n\n";
-    } else if (sucINSS < 10 && sucAutora >= 10) {
-        // INSS perde menos de 10%
-        autoraPaga = 100;
-        inssPaga = 0;
-        texto += "Reconhece-se sucumbência mínima do INSS, pois sua perda corresponde a menos de 10% do total. Assim, compete exclusivamente à parte autora suportar os ônus sucumbenciais.\n\n";
+    if (ganhoAutora < 0.10) {
+        textoSucumbencia =
+            "A sucumbência da parte autora é inferior a 10% do proveito econômico pretendido. Trata-se, portanto, de sucumbência mínima. " +
+            "Assim, apenas o INSS suportará integralmente os ônus sucumbenciais.";
+        honorariosINSS = basePercent;
+        honorariosAutora = 0;
+    } else if (ganhoAutora > 0.90) {
+        textoSucumbencia =
+            "A sucumbência do INSS é inferior a 10% do total controvertido, configurando sucumbência mínima. " +
+            "Assim, somente a parte autora suportará os ônus sucumbenciais.";
+        honorariosAutora = basePercent;
+        honorariosINSS = 0;
     } else {
-        // divisão proporcional normal
-        autoraPaga = sucAutora;
-        inssPaga = sucINSS;
-        texto += "A sucumbência é distribuída proporcionalmente ao êxito de cada parte, considerando a composição da causa (danos morais e demais pedidos).\n\n";
+        const percAutora = (1 - ganhoAutora) * basePercent;
+        const percINSS   = ganhoAutora * basePercent;
+        honorariosAutora = percAutora;
+        honorariosINSS   = percINSS;
+        textoSucumbencia =
+            "Ambas as partes decaíram de forma significativa de seus pedidos e defesas. A distribuição dos ônus sucumbenciais deve ocorrer de forma proporcional a cada decaimento.";
     }
 
-    // ajuste dos percentuais dentro do texto (sem “0%” absurdos)
-    function pct(x) {
-        return x.toFixed(2).replace(".00", "");
-    }
-
-    // textos específicos conforme AJG
-    let textoAutora = "";
+    // AJG
+    let textoAJG = "";
     if (ajg === "sim") {
-        textoAutora =
-            "A parte autora, embora beneficiária da assistência judiciária gratuita, é condenada ao pagamento da sua parcela de honorários advocatícios, sem suspensão da exigibilidade. O INSS é condenado ao ressarcimento da parte correspondente das custas adiantadas.";
-    } else {
-        textoAutora =
-            "A parte autora é condenada ao pagamento da sua parcela dos honorários advocatícios, nos termos proporcionais definidos.";
+        textoAJG =
+            "A parte autora é beneficiária da gratuidade da justiça, razão pela qual a condenação referente à sua parcela de sucumbência não é suspensa, mas será exigível normalmente. " +
+            "O INSS deverá ressarcir a parte autora pelas custas que esta houver adiantado, na proporção correspondente.";
     }
 
-    const textoINSS =
-        "O INSS é condenado ao pagamento da sua parcela dos honorários advocatícios, calculada de forma proporcional ao grau de sucumbência.";
+    // Resultado final
+    let resultado = "";
+    resultado += "Resultado do Cálculo da Sucumbência\n\n";
+    resultado += `Proporção total reconhecida: ${(ganhoAutora*100).toFixed(2)}%\n\n`;
+    resultado += textoSucumbencia + "\n\n";
 
-    // montagem final do texto
-    texto +=
-        "Distribuição final dos honorários:\n\n" +
-        (autoraPaga > 0
-            ? `• Parte autora: ${pct(autoraPaga)}% dos honorários.\n`
-            : "• Parte autora: não arca com honorários, diante da sucumbência mínima da parte ré.\n") +
-        (inssPaga > 0
-            ? `• INSS: ${pct(inssPaga)}% dos honorários.\n\n`
-            : "• INSS: não arca com honorários, diante da sucumbência mínima da parte autora.\n\n");
+    if (honorariosAutora > 0)
+        resultado += `Honorários devidos pela parte autora: ${honorariosAutora.toFixed(2)}% do valor da causa.\n`;
+    if (honorariosINSS > 0)
+        resultado += `Honorários devidos pelo INSS: ${honorariosINSS.toFixed(2)}% do valor da causa.\n`;
 
-    texto += "Justificativa da composição econômica:\n" +
-        `• Danos morais representam ${pct(propMorais * 100)}% do valor total da causa.\n` +
-        `• Os demais pedidos representam ${pct(propPeriodos * 100)}%.\n\n`;
+    if (ajg === "sim") resultado += "\n" + textoAJG;
 
-    if (autoraPaga > 0) texto += textoAutora + "\n\n";
-    if (inssPaga > 0) texto += textoINSS + "\n";
+    document.getElementById("resultado").innerText = resultado;
+}
 
-    document.getElementById("resultado").innerText = texto;
+// danos morais reconhecidos proporcionalmente aos materiais
+function danosMoraisReconhecidos(dm, proporcaoMateriais) {
+    return dm * proporcaoMateriais;
 }
 </script>
 
