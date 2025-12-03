@@ -208,68 +208,79 @@ function computeMinuta(opts){
   // montar a minuta
   let minuta = '';
 
-  if(opts.houveBeneficio){
-    // versão concessão (Súmula 111 aplicável: honorários incidentes sobre condenação)
+//
+// GERAÇÃO DA MINUTA — corrigida para:
+// 1) excluir texto de sucumbência recíproca quando há sucumbência mínima
+// 2) aplicar Súmula 111 sem mencionar "10%"
+// 3) aplicar proporcionalidade somente quando NÃO houver sucumbência mínima
+//
+
+if(opts.houveBeneficio){
+  // BENEFÍCIO CONCEDIDO → Súmula 111
+
+  // Exibe apenas se NÃO houver sucumbência mínima
+  if(!minimaAplicada){
     minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço${opts.houveDanos ? ' e a improcedência do pedido de danos morais' : ''}, a parte autora obteve êxito ponderado de ${roundTo(authorShare*100,1).toFixed(1)}% sobre a demanda.\n\n`;
-    minuta += `Em razão da sucumbência recíproca, fixo a verba honorária ${baseText}.\n\n`;
-
-    // casos:
-    if(minimaAplicada === 'autor'){
-      // autora considerada vencida integralmente -> autora arca integralmente com ônus sucumbenciais
-      minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos, devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
-      // réu paga ao autor? Não — réu é vencedor (INSS venceu?) Wait: authorShare=0 => author lost -> author pays all -> pct_to_author=0, pct_to_reu=10
-      // portanto: condenar autora a pagar 10% ao reu (sobre condenação? base depende: when benefit conceded, base is condenacao)
-      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor das parcelas vencidas (na forma da Súmula 111). Não há verba devida pelo réu ao autor.\n\n`;
-      // AJG handling below
-    } else if(minimaAplicada === 'inss'){
-      // réu considerado vencido integralmente -> réu paga tudo
-      minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos, motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
-      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor das parcelas vencidas (na forma da Súmula 111). Não há verba devida pela parte autora ao réu.\n\n`;
-    } else {
-      // proporcional
-      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${pct_to_author.toFixed(opts.casas)}% do valor das parcelas vencidas. `;
-      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${pct_to_reu.toFixed(opts.casas)}% do valor das parcelas vencidas.\n\n`;
-    }
-
-    // AJG e custas/ressarcimento
-    if(opts.ajg){
-      minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora fica suspensa, nos termos do art. 98, §3º, do CPC, por ser beneficiária da gratuidade de justiça.\n\n`;
-      minuta += `Partes isentas de custas processuais.\n`;
-    } else {
-      // sem AJG: INSS ressarcirá custas adiantadas pela autora (quando houver adiantamento)
-      minuta += `Condeno o INSS ao ressarcimento proporcional das custas adiantadas pela parte autora.\n\n`;
-    }
-
-  } else {
-    // versão não concessão (sem súmula): honorários 10% sobre valor da causa e distribuídos proporcionalmente
-    minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço${opts.houveDanos ? ' e a improcedência do pedido de danos morais' : ''}, a parte autora obteve êxito ponderado de ${roundTo(authorShare*100,1).toFixed(1)}% sobre a demanda.\n\n`;
-    minuta += `Em razão disso, considerando a proporcionalidade exigida pelos arts. 85, §§ 2º e 3º, e 90, caput, do CPC, condeno as partes ao pagamento de honorários advocatícios recíprocos, fixando-os em 10% (dez por cento) sobre o valor atualizado da causa.\n\n`;
-
-    if(minimaAplicada === 'autor'){
-      // autora considerada vencida integralmente -> autora paga tudo
-      minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos, devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
-      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor atualizado da causa. Não há verba devida pelo réu ao autor.\n\n`;
-    } else if(minimaAplicada === 'inss'){
-      // inss vencido integralmente -> inss pays all
-      minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos, motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
-      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor atualizado da causa. Não há verba devida pela parte autora ao réu.\n\n`;
-    } else {
-      // proporcional
-      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${pct_to_author.toFixed(opts.casas)}% do valor atualizado da causa. `;
-      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${pct_to_reu.toFixed(opts.casas)}% do valor atualizado da causa.\n\n`;
-    }
-
-    // AJG / custas
-    if(opts.ajg){
-      minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora fica suspensa, nos termos do art. 98, §3º, do CPC, por ser beneficiária da gratuidade de justiça.\n\n`;
-      minuta += `Partes isentas de custas processuais.\n`;
-    } else {
-      minuta += `Condeno o INSS ao ressarcimento proporcional das custas adiantadas pela parte autora, se houver comprovação de adiantamento.\n\n`;
-    }
+    minuta += `A verba honorária é fixada nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor da condenação, na forma da Súmula 111 do STJ.\n\n`;
   }
 
-  return {minuta, detalhe:{diasCont,diasAcol,propTempo,propDecDanos:propDecDanos,exitoPonderado,authorShare,defendantShare,minimaAplicada,pct_to_author,pct_to_reu}};
+  // CASOS DE SUCUMBÊNCIA
+  if(minimaAplicada === 'autor'){
+    // autora perde tudo
+    minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos, devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
+    minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, calculados nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor da condenação, na forma da Súmula 111 do STJ. Não há verba devida pelo réu ao autor.\n\n`;
+
+  } else if(minimaAplicada === 'inss'){
+    // INSS perde tudo
+    minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos, motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
+    minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, calculados nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor da condenação, na forma da Súmula 111 do STJ. Não há verba devida pela parte autora ao réu.\n\n`;
+
+  } else {
+    // RECÍPROCA — proporcionalidade
+    minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, proporcionais ao decaimento do INSS (${pct_to_author.toFixed(opts.casas)}% do montante devido). `;
+    minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, proporcionais ao seu decaimento (${pct_to_reu.toFixed(opts.casas)}% do montante devido).\n\n`;
+  }
+
+  // AJG E CUSTAS
+  if(opts.ajg){
+    minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora fica suspensa, nos termos do art. 98, §3º, do CPC, por ser beneficiária da gratuidade da justiça.\n\n`;
+    minuta += `Partes isentas de custas processuais.\n`;
+  } else {
+    minuta += `Concedo ao INSS ao ressarcimento proporcional das custas adiantadas pela parte autora, se houver comprovação de adiantamento.\n\n`;
+  }
+
+} else {
+  // BENEFÍCIO NÃO CONCEDIDO — base = valor da causa
+
+  // Exibe apenas se NÃO houver sucumbência mínima
+  if(!minimaAplicada){
+    minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço${opts.houveDanos ? ' e a improcedência do pedido de danos morais' : ''}, a parte autora obteve êxito ponderado de ${roundTo(authorShare*100,1).toFixed(1)}% sobre a demanda.\n\n`;
+    minuta += `Os honorários advocatícios são fixados em observância aos arts. 85, §§2º e 3º, e 90 do CPC, no percentual mínimo, incidentes sobre o valor atualizado da causa.\n\n`;
+  }
+
+  if(minimaAplicada === 'autor'){
+    minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos, devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
+    minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor atualizado da causa. Não há verba devida pelo réu ao autor.\n\n`;
+
+  } else if(minimaAplicada === 'inss'){
+    minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos, motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
+    minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor atualizado da causa. Não há verba devida pela parte autora ao réu.\n\n`;
+
+  } else {
+    // proporcional
+    minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, proporcionais ao decaimento do INSS (${pct_to_author.toFixed(opts.casas)}% do montante devido). `;
+    minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, proporcionais ao seu decaimento (${pct_to_reu.toFixed(opts.casas)}% do montante devido).\n\n`;
+  }
+
+  // AJG / custas
+  if(opts.ajg){
+    minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora fica suspensa, nos termos do art. 98, §3º, do CPC, por ser beneficiária da gratuidade de justiça.\n\n`;
+    minuta += `Partes isentas de custas processuais.\n`;
+  } else {
+    minuta += `Condeno o INSS ao ressarcimento proporcional das custas adiantadas pela parte autora, se houver comprovação de adiantamento.\n\n`;
+  }
 }
+
 
 /* UI hooks */
 document.getElementById('selectDanos').addEventListener('change', ()=>{
