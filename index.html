@@ -1,457 +1,165 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Calculadora de Sucumbência Previdenciária — Versão Atualizada</title>
+<meta charset="UTF-8">
+<title>Cálculo de Sucumbência</title>
 <style>
-  :root{--bg:#f4f6fb;--card:#fff;--muted:#556;--accent:#0f62fe}
-  body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); margin:0; color:#0b1220}
-  .wrap{max-width:980px;margin:28px auto;padding:20px}
-  header{display:flex;align-items:center;gap:12px}
-  header h1{font-size:18px;margin:0}
-  .grid{display:grid;grid-template-columns:1fr 380px;gap:18px;margin-top:18px}
-  @media(max-width:920px){.grid{grid-template-columns:1fr}}
-  .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(11,18,32,0.06)}
-  label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
-  textarea,input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #e6e9ef;font-size:14px;box-sizing:border-box}
-  textarea{min-height:110px;resize:vertical}
-  .row{display:flex;gap:10px}
-  .col{flex:1}
-  .controls{display:flex;gap:10px;align-items:center;margin-top:12px}
-  button{background:var(--accent);color:#fff;padding:10px 12px;border-radius:8px;border:0;cursor:pointer}
-  button.secondary{background:#eef3ff;color:var(--accent);border:1px solid rgba(15,98,254,0.12)}
-  .result{white-space:pre-wrap;background:#0b122033;padding:12px;border-radius:8px;min-height:140px;font-family:ui-monospace,Menlo,monospace}
-  .meta{font-size:13px;color:var(--muted);margin-top:8px}
-  .warn{color:#b02a37;font-weight:600}
-  footer{margin-top:16px;font-size:13px;color:var(--muted)}
+    body {
+        font-family: Arial, sans-serif;
+        max-width: 900px;
+        margin: auto;
+        padding: 20px;
+        line-height: 1.5;
+        color: #222;
+        background: #fafafa;
+    }
+    h1 { text-align: center; }
+    .box {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+        margin-bottom: 20px;
+    }
+    textarea, input, select {
+        width: 100%;
+        box-sizing: border-box;
+        margin-top: 6px;
+        margin-bottom: 12px;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid #bbb;
+    }
+    button {
+        padding: 10px 20px;
+        border: none;
+        background: #2a66f7;
+        color: white;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+    }
+    button:hover { opacity: 0.85; }
+    #resultado { white-space: pre-wrap; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="4" fill="#0f62fe"/><path d="M7 9h10M7 13h6" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>
-    <h1>Calculadora de Sucumbência Previdenciária — Offline</h1>
-  </header>
 
-  <div class="grid">
-    <div class="card" aria-live="polite">
-      <label>Períodos controvertidos (cole planilha, pdf convertido, texto livre)</label>
-      <textarea id="inputCont" placeholder="Cole aqui: ex.: 01/01/1990 a 31/12/1992; 01.03.1998 a 28.02.2001; ..."></textarea>
+<h1>Calculadora de Sucumbência</h1>
 
-      <label>Períodos acolhidos (deferidos) — opcional</label>
-      <textarea id="inputAcol" placeholder="Cole apenas os períodos reconhecidos a favor do autor (separados por nova linha ou vírgula)"></textarea>
+<div class="box">
+    <label><b>Valor total da causa (R$):</b></label>
+    <input id="valorCausa" type="number" placeholder="Ex.: 50000">
 
-      <div class="row" style="margin-top:8px">
-        <div class="col">
-          <label>Houve concessão do benefício?</label>
-          <select id="selectBenef"><option value="sim">Sim</option><option value="nao">Não</option></select>
-        </div>
-        <div class="col">
-          <label>Há pedido de danos morais?</label>
-          <select id="selectDanos"><option value="nao">Não</option><option value="sim">Sim</option></select>
-        </div>
-      </div>
+    <label><b>Valor atribuído aos danos morais (R$):</b></label>
+    <input id="valorMorais" type="number" placeholder="Ex.: 10000">
 
-      <div id="boxDanos" style="display:none;margin-top:10px">
-        <div class="row">
-          <div class="col">
-            <label>Valor total da causa (R$)</label>
-            <input id="valorCausa" placeholder="ex: 15000,00" />
-          </div>
-          <div class="col">
-            <label>Valor pedido danos morais (R$)</label>
-            <input id="valorDanos" placeholder="ex: 5000,00" />
-          </div>
-        </div>
-      </div>
+    <label><b>Valor econômico dos pedidos (períodos etc.) (R$):</b></label>
+    <input id="valorPeriodos" type="number" placeholder="Ex.: 40000">
 
-      <div class="row" style="margin-top:10px">
-        <div class="col">
-          <label>Autora possui AJG?</label>
-          <select id="selectAJG"><option value="sim">Sim</option><option value="nao">Não</option></select>
-        </div>
-        <div class="col">
-          <label>Casas decimais (arredondamento)</label>
-          <select id="selectCasas"><option value="1">1 casa</option><option value="2">2 casas</option></select>
-        </div>
-      </div>
+    <label><b>Percentual obtido pela parte autora (% dos pedidos):</b></label>
+    <input id="percentualAutora" type="number" placeholder="Ex.: 62">
 
-      <div style="margin-top:10px">
-        <label>Regra de sucumbência mínima (percentual):</label>
-        <input id="minimoInput" type="number" step="0.01" value="10" />
-        <div class="meta">Se a parcela de êxito de qualquer das partes for inferior a este percentual (em %), essa parte será considerada vencida integralmente. (padrão: 10%)</div>
-      </div>
+    <label><b>A parte autora possui AJG?</b></label>
+    <select id="ajg">
+        <option value="nao">Não</option>
+        <option value="sim">Sim</option>
+    </select>
 
-      <div class="controls">
-        <button id="btnProcess">Validar & Processar</button>
-        <button id="btnCalc" class="secondary">Calcular e Gerar Minuta</button>
-        <button id="btnCopy" class="secondary">Copiar Minuta</button>
-        <button id="btnDownload" class="secondary">Baixar .txt</button>
-      </div>
+    <button onclick="calcular()">Calcular sucumbência</button>
+</div>
 
-      <div class="meta" style="margin-top:8px">Observação: o parser aceita formatos comuns (DD/MM/AAAA, D/M/AA, . / -). Para formatos incomuns, verifique o resumo antes de gerar a minuta.</div>
-    </div>
-
-    <div class="card">
-      <label>Resumo do processamento</label>
-      <div id="summary" class="result">Ainda não processado.</div>
-
-      <label style="margin-top:12px">Minuta (texto final)</label>
-      <div id="minuta" class="result">Sem minuta.</div>
-      <div id="detalhe" class="meta"></div>
-    </div>
-  </div>
-
-  <footer>Funciona 100% offline no navegador. Para integração com LLM ou automação de envio, use um proxy seguro (Cloudflare Worker) para não expor chaves.</footer>
+<div class="box">
+    <h2>Resultado</h2>
+    <div id="resultado"></div>
 </div>
 
 <script>
-/* ============================
-   UTILITÁRIOS E PARSERS
-   ============================ */
+// -------------------------------
+// CÁLCULO
+// -------------------------------
 
-/* Normaliza e encontra pares de datas num texto.
-   Suporta separadores: '/', '.', '-' e anos com 2 ou 4 dígitos.
-   Captura padrões: DD/MM/AAAA a DD/MM/AAAA, DD/MM/AA - DD/MM/AA, e também sequências separadas por vírgula. */
-function extractDatePairs(text){
-  if(!text) return [];
-  // normalize common unicode dashes
-  text = text.replace(/\u2013|\u2014/g,'-');
-  // replace dots between dates e.g. 01.02.2000 -> 01/02/2000
-  text = text.replace(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/g, '$1/$2/$3');
-  // unify separators
-  text = text.replace(/(\d)([\/\-.])(\d)/g, '$1/$3'); // but careful: keeps only slashes, a bit naive but ok for common cases
-  // pattern for ranges: date sep (a|até|-|to) date
-  const rangeRegex = /(\d{1,2}\/\d{1,2}\/\d{2,4})\s*(?:a|até|-|–|—|to)\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/gi;
-  const pairs = [];
-  let m;
-  while((m = rangeRegex.exec(text)) !== null){
-    pairs.push([normalizeDate(m[1]), normalizeDate(m[2])]);
-  }
-  // fallback: se não encontrou ranges, tente agrupar datas sequenciais na mesma linha
-  if(pairs.length === 0){
-    const lines = text.split(/\r?\n/);
-    const singleDateRegex = /(\d{1,2}\/\d{1,2}\/\d{2,4})/g;
-    for(const line of lines){
-      const dates = [...line.matchAll(singleDateRegex)].map(x=>normalizeDate(x[1]));
-      if(dates.length >= 2){
-        // pares consecutivos (d1,d2), (d3,d4), ...
-        for(let i=0;i+1<dates.length;i+=2){
-          pairs.push([dates[i], dates[i+1]]);
-        }
-      }
+function calcular() {
+    const valorCausa = Number(document.getElementById("valorCausa").value);
+    const valorMorais = Number(document.getElementById("valorMorais").value);
+    const valorPeriodos = Number(document.getElementById("valorPeriodos").value);
+    const pAutora = Number(document.getElementById("percentualAutora").value);
+    const ajg = document.getElementById("ajg").value;
+
+    if (!valorCausa || !valorMorais || !valorPeriodos || !pAutora) {
+        document.getElementById("resultado").innerText =
+            "Preencha todos os campos com valores numéricos válidos.";
+        return;
     }
-  }
-  // última tentativa: pegar todas as datas do texto e emparelhar sequencialmente
-  if(pairs.length === 0){
-    const allDates = [...text.matchAll(/(\d{1,2}\/\d{1,2}\/\d{2,4})/g)].map(x=>normalizeDate(x[1]));
-    for(let i=0;i+1<allDates.length;i+=2) pairs.push([allDates[i], allDates[i+1]]);
-  }
 
-  // transformar em objetos com parseDMY
-  const out = [];
-  for(const p of pairs){
-    const a = parseDMY(p[0]);
-    const b = parseDMY(p[1]);
-    if(a && b) out.push({startStr: p[0], endStr: p[1], start:a, end:b});
-  }
-  return out;
-}
+    // proporção dos danos morais no valor total
+    const propMorais = valorMorais / valorCausa;
+    const propPeriodos = valorPeriodos / valorCausa;
 
-function normalizeDate(s){
-  s = s.trim();
-  // accept dd/mm/yy or dd/mm/yyyy
-  const parts = s.split('/');
-  if(parts.length!==3) return s;
-  let [d,m,y] = parts.map(p=>p.replace(/[^\d]/g,''));
-  if(y.length===2){
-    const yi = parseInt(y,10);
-    y = (yi < 50 ? 2000 + yi : 1900 + yi).toString();
-  }
-  if(d.length===1) d = '0'+d;
-  if(m.length===1) m = '0'+m;
-  return `${d}/${m}/${y}`;
-}
+    // sucumbências brutas
+    const sucAutora = 100 - pAutora;
+    const sucINSS = pAutora;
 
-function parseDMY(s){
-  const parts = s.split('/');
-  if(parts.length!==3) return null;
-  const d = parseInt(parts[0],10), m = parseInt(parts[1],10), y = parseInt(parts[2],10);
-  if(isNaN(d)||isNaN(m)||isNaN(y)) return null;
-  if(m<1||m>12||d<1||d>31) return null;
-  return {d,m,y,js:new Date(y,m-1,d)};
-}
+    // regra da sucumbência mínima (<10%)
+    let texto = "";
+    let autoraPaga = 0;
+    let inssPaga = 0;
 
-/* calcula dias inclusivos com regra: ano=365, mes=30 */
-function absDays(obj){ return obj.y*365 + obj.m*30 + obj.d; }
-function daysInclusive(startObj,endObj){ return Math.max(0, absDays(endObj) - absDays(startObj) + 1); }
-
-/* merge intervals preservando datas originais: aceita array de {start,end,startStr,endStr,startObj,endObj} */
-function mergeIntervals(arr){
-  if(!arr || arr.length===0) return [];
-  // convert to numeric and sort
-  const conv = arr.map(it=>{
-    return {s:absDays(it.start), e:absDays(it.end), start:it.start, end:it.end, startStr:it.startStr, endStr:it.endStr};
-  });
-  conv.sort((a,b)=>a.s - b.s || a.e - b.e);
-  const merged = [];
-  let cur = {...conv[0]};
-  for(let i=1;i<conv.length;i++){
-    const nxt = conv[i];
-    if(nxt.s <= cur.e + 1){
-      // extend end if needed; preserve original end object of the one with larger e
-      if(nxt.e > cur.e){
-        cur.e = nxt.e;
-        cur.end = nxt.end;
-        cur.endStr = nxt.endStr;
-      }
+    if (sucAutora < 10 && sucINSS >= 10) {
+        // Autora perde menos de 10%
+        inssPaga = 100;
+        autoraPaga = 0;
+        texto += "Reconhece-se sucumbência mínima da parte autora, pois sua perda corresponde a menos de 10% do total. Assim, compete exclusivamente ao INSS suportar os ônus sucumbenciais.\n\n";
+    } else if (sucINSS < 10 && sucAutora >= 10) {
+        // INSS perde menos de 10%
+        autoraPaga = 100;
+        inssPaga = 0;
+        texto += "Reconhece-se sucumbência mínima do INSS, pois sua perda corresponde a menos de 10% do total. Assim, compete exclusivamente à parte autora suportar os ônus sucumbenciais.\n\n";
     } else {
-      merged.push({...cur});
-      cur = {...nxt};
+        // divisão proporcional normal
+        autoraPaga = sucAutora;
+        inssPaga = sucINSS;
+        texto += "A sucumbência é distribuída proporcionalmente ao êxito de cada parte, considerando a composição da causa (danos morais e demais pedidos).\n\n";
     }
-  }
-  merged.push({...cur});
-  // convert back to structured form (attempt to reconstruct day/month/year from start/end numeric using nearest original)
-  return merged.map(it=>{
-    // keep start as-is; end as-is
-    return {
-      start: it.start,
-      end: it.end,
-      startStr: it.startStr,
-      endStr: it.endStr,
-      sAbs: it.s,
-      eAbs: it.e
-    };
-  });
-}
 
-/* formata DD/MM/YYYY a partir de obj */
-function fmt(obj){
-  if(!obj) return '';
-  return String(obj.d).padStart(2,'0') + '/' + String(obj.m).padStart(2,'0') + '/' + String(obj.y);
-}
+    // ajuste dos percentuais dentro do texto (sem “0%” absurdos)
+    function pct(x) {
+        return x.toFixed(2).replace(".00", "");
+    }
 
-/* parse valores monetários robusto */
-function parseMoney(s){
-  if(!s) return 0;
-  s = String(s).trim();
-  // aceita 1.234,56 ou 1234.56 ou 1234,56
-  if(s.indexOf(',')>-1 && s.indexOf('.')>-1){
-    // assume ponto separador de milhares e vírgula decimal
-    s = s.replace(/\./g,'').replace(',', '.');
-  } else if(s.indexOf(',')>-1){
-    s = s.replace(',', '.');
-  }
-  const v = parseFloat(s);
-  return isNaN(v) ? 0 : v;
-}
-
-/* número por extenso simples para percentuais arredondados (inteiro) */
-function numExtenso(n){
-  const v = Math.round(n);
-  const unidades = ["zero","um","dois","três","quatro","cinco","seis","sete","oito","nove","dez","onze","doze","treze","quatorze","quinze","dezesseis","dezessete","dezoito","dezenove","vinte"];
-  const dezenas = {30:"trinta",40:"quarenta",50:"cinquenta",60:"sessenta",70:"setenta",80:"oitenta",90:"noventa"};
-  if(v<=20) return unidades[v];
-  if(v<100){
-    if(v%10===0) return dezenas[v];
-    const d = Math.floor(v/10)*10;
-    return `${dezenas[d]} e ${unidades[v%10]}`;
-  }
-  return String(v);
-}
-
-/* ============================
-   LÓGICA DE CÁLCULO E SAÍDA
-   ============================ */
-
-function computeAndGenerate(options){
-  // options: {controvertidosText, acolhidosText, houveBeneficio, houveDanos, valorCausa, valorDanos, ajg, casas, minimoPercent}
-  const pairsCont = extractDatePairs(options.controvertidosText);
-  const pairsAcol = extractDatePairs(options.acolhidosText);
-
-  // validar (remover start>end)
-  const validCont = pairsCont.filter(it=>absDays(it.start) <= absDays(it.end));
-  const invalidCnt = pairsCont.length - validCont.length;
-  const validAcol = pairsAcol.filter(it=>absDays(it.start) <= absDays(it.end));
-
-  // mesclar
-  const mergedCont = mergeIntervals(validCont);
-  const mergedAcol = mergeIntervals(validAcol);
-
-  // calcular dias
-  const diasCont = mergedCont.reduce((s,it)=> s + (it.eAbs - it.sAbs + 1),0);
-  const diasAcol = mergedAcol.reduce((s,it)=> s + (it.eAbs - it.sAbs + 1),0);
-
-  // proporcao de tempo
-  const propTempo = diasCont === 0 ? 0 : diasAcol / diasCont;
-
-  // decaimento danos
-  let propDecDanos = 0;
-  if(options.houveDanos){
-    if(options.valorCausa > 0) propDecDanos = Math.min(1, options.valorDanos / options.valorCausa);
-  }
-
-  const sucessoP = propTempo * (1 - propDecDanos);
-  let decaimentoP = 1 - sucessoP;
-
-  // aplicar regra de sucumbência mínima (em percent)
-  const minimo = options.minimoPercent / 100; // converte para 0..1
-  let authorShare = sucessoP; // proporção de êxito da autora
-  let defendantShare = decaimentoP;
-
-  // aplicar mínima: se authorShare < minimo => autora considerada vencida completamente (authorShare=0, defendantShare=1)
-  // se defendantShare < minimo => réu considerado vencido completamente (defendantShare=0, authorShare=1)
-  if(authorShare < minimo){
-    authorShare = 0;
-    defendantShare = 1;
-  } else if(defendantShare < minimo){
-    defendantShare = 0;
-    authorShare = 1;
-  }
-
-  // distribuição sobre 10% de honorários
-  let honorariosReuPercent = authorShare * 10;   // réu paga honorários ao autor
-  let honorariosAutorPercent = defendantShare * 10; // autor paga honorários ao réu
-
-  // aplicar arredondamento conforme casas (n casas decimais)
-  const factor = Math.pow(10, options.casas);
-  honorariosReuPercent = Math.round(honorariosReuPercent * factor) / factor;
-  honorariosAutorPercent = Math.round(honorariosAutorPercent * factor) / factor;
-
-  const sucessoP_pct = Math.round(authorShare * 1000) / 10; // uma casa decimal
-  const decP_pct = Math.round(defendantShare * 1000) / 10;
-
-  // montar minuta conforme versão (beneficio sim/nao) e AJG
-  let minuta = '';
-  const authorHasAJG = options.ajg === 'sim';
-  if(options.houveBeneficio){
-    minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço e a improcedência do pedido de danos morais (se houver), a parte autora obteve êxito ponderado de ${sucessoP_pct.toFixed(1)}% (${numExtenso(sucessoP_pct)}) sobre a demanda total.\n\n`;
-    minuta += `Em razão da sucumbência recíproca, fixo a verba honorária nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor da condenação, na forma da Súmula 111 do STJ. `;
-    minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${honorariosReuPercent.toFixed(options.casas)}% do valor das parcelas vencidas. `;
-    minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${honorariosAutorPercent.toFixed(options.casas)}% do valor das parcelas vencidas.\n\n`;
-    if(authorHasAJG){
-      minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora fica suspensa, nos termos do art. 98, § 3º, do CPC, por ser beneficiária da gratuidade de justiça.\n\n`;
+    // textos específicos conforme AJG
+    let textoAutora = "";
+    if (ajg === "sim") {
+        textoAutora =
+            "A parte autora, embora beneficiária da assistência judiciária gratuita, é condenada ao pagamento da sua parcela de honorários advocatícios, sem suspensão da exigibilidade. O INSS é condenado ao ressarcimento da parte correspondente das custas adiantadas.";
     } else {
-      // sem AJG: não suspender exigibilidade; além disso, INSS deve ressarcir custas proporcionais se condenação houver
-      minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora não está suspensa por ausência de AJG.\n\n`;
-      minuta += `Condeno o INSS ao ressarcimento proporcional das custas adiantadas pela parte autora.\n\n`;
+        textoAutora =
+            "A parte autora é condenada ao pagamento da sua parcela dos honorários advocatícios, nos termos proporcionais definidos.";
     }
-    minuta += `Partes isentas de custas processuais.\n`;
-  } else {
-    // benefício não concedido
-    minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço e a improcedência do pedido de danos morais (se houver), a parte autora obteve êxito ponderado de ${sucessoP_pct.toFixed(1)}% (${numExtenso(sucessoP_pct)}), resultando em sucumbência recíproca.\n\n`;
-    minuta += `Em razão disso, considerando a proporcionalidade exigida pelos artigos 85, §§ 2º e 3º, e 90, caput, do CPC, condeno as partes ao pagamento de honorários advocatícios recíprocos, fixando-os em 10% (dez por cento) sobre o valor atualizado da causa. `;
-    minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${honorariosReuPercent.toFixed(options.casas)}% do valor atualizado da causa. `;
-    minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${honorariosAutorPercent.toFixed(options.casas)}% do valor atualizado da causa.\n\n`;
-    if(authorHasAJG){
-      minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora fica suspensa, nos termos do art. 98, § 3º, do CPC, por ser beneficiária da gratuidade de justiça.\n\n`;
-    } else {
-      minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora não está suspensa por ausência de AJG.\n\n`;
-      minuta += `Condeno o INSS ao ressarcimento proporcional das custas adiantadas pela parte autora.\n\n`;
-    }
-    minuta += `Partes isentas de custas processuais.\n`;
-  }
 
-  // detalhamento numérico
-  const detalhe = {
-    diasControversos: diasCont,
-    diasAcolhidos: diasAcol,
-    propTempo_raw: propTempo,
-    decaimento_danos_prop: propDecDanos,
-    sucessoP_bruto: sucessoP,
-    sucessoP_final: authorShare,
-    decaimento_final: defendantShare,
-    honorariosReuPercent,
-    honorariosAutorPercent,
-    invalidosCont: (pairsCont.length - validCont.length),
-    invalidosAcol: (pairsAcol.length - validAcol.length),
-    mergedCont: mergedCont.map(it=>({start:it.startStr,end:it.endStr})),
-    mergedAcol: mergedAcol.map(it=>({start:it.startStr,end:it.endStr}))
-  };
+    const textoINSS =
+        "O INSS é condenado ao pagamento da sua parcela dos honorários advocatícios, calculada de forma proporcional ao grau de sucumbência.";
 
-  return {minuta, detalhe, sucessoP_pct, honorariosReuPercent, honorariosAutorPercent};
+    // montagem final do texto
+    texto +=
+        "Distribuição final dos honorários:\n\n" +
+        (autoraPaga > 0
+            ? `• Parte autora: ${pct(autoraPaga)}% dos honorários.\n`
+            : "• Parte autora: não arca com honorários, diante da sucumbência mínima da parte ré.\n") +
+        (inssPaga > 0
+            ? `• INSS: ${pct(inssPaga)}% dos honorários.\n\n`
+            : "• INSS: não arca com honorários, diante da sucumbência mínima da parte autora.\n\n");
+
+    texto += "Justificativa da composição econômica:\n" +
+        `• Danos morais representam ${pct(propMorais * 100)}% do valor total da causa.\n` +
+        `• Os demais pedidos representam ${pct(propPeriodos * 100)}%.\n\n`;
+
+    if (autoraPaga > 0) texto += textoAutora + "\n\n";
+    if (inssPaga > 0) texto += textoINSS + "\n";
+
+    document.getElementById("resultado").innerText = texto;
 }
-
-/* ============================
-   UI HOOKS
-   ============================ */
-
-const btnProcess = document.getElementById('btnProcess');
-const btnCalc = document.getElementById('btnCalc');
-const btnCopy = document.getElementById('btnCopy');
-const btnDownload = document.getElementById('btnDownload');
-const summaryDiv = document.getElementById('summary');
-const minutaDiv = document.getElementById('minuta');
-const detalheDiv = document.getElementById('detalhe');
-const selectDanos = document.getElementById('selectDanos');
-const boxDanos = document.getElementById('boxDanos');
-
-selectDanos.addEventListener('change', ()=> {
-  boxDanos.style.display = selectDanos.value === 'sim' ? 'block' : 'none';
-});
-
-function gatherOptions(){
-  return {
-    controvertidosText: document.getElementById('inputCont').value,
-    acolhidosText: document.getElementById('inputAcol').value,
-    houveBeneficio: document.getElementById('selectBenef').value === 'sim',
-    houveDanos: document.getElementById('selectDanos').value === 'sim',
-    valorCausa: parseMoney(document.getElementById('valorCausa').value || ''),
-    valorDanos: parseMoney(document.getElementById('valorDanos').value || ''),
-    ajg: document.getElementById('selectAJG').value,
-    casas: parseInt(document.getElementById('selectCasas').value,10),
-    minimoPercent: parseFloat(document.getElementById('minimoInput').value || 10)
-  };
-}
-
-btnProcess.addEventListener('click', ()=> {
-  const opts = gatherOptions();
-  const pairsCont = extractDatePairs(opts.controvertidosText);
-  const pairsAcol = extractDatePairs(opts.acolhidosText);
-  const validCont = pairsCont.filter(it=>absDays(it.start) <= absDays(it.end));
-  const mergedCont = mergeIntervals(validCont);
-  const mergedAcol = mergeIntervals(pairsAcol.filter(it=>absDays(it.start) <= absDays(it.end)));
-  const diasCont = mergedCont.reduce((s,it)=> s + (it.eAbs - it.sAbs + 1),0);
-  const diasAcol = mergedAcol.reduce((s,it)=> s + (it.eAbs - it.sAbs + 1),0);
-
-  let txt = `Períodos detectados (controvertidos): ${pairsCont.length} (válidos: ${validCont.length})\nPeríodos detectados (acolhidos): ${pairsAcol.length} (válidos: ${pairsAcol.length})\n\nApós mesclagem:\n- Controvertidos (${mergedCont.length}): total ${diasCont} dias\n`;
-  txt += mergedCont.map(it=>`  • ${it.startStr} a ${it.endStr}`).join('\n') + '\n\n';
-  txt += `- Acolhidos (${mergedAcol.length}): total ${diasAcol} dias\n`;
-  if(mergedAcol.length) txt += mergedAcol.map(it=>`  • ${it.startStr} a ${it.endStr}`).join('\n') + '\n\n';
-  summaryDiv.innerText = txt;
-  minutaDiv.innerText = 'Pronto para cálculo. Clique "Calcular e Gerar Minuta".';
-  detalheDiv.innerText = '';
-});
-
-btnCalc.addEventListener('click', ()=> {
-  const opts = gatherOptions();
-  const result = computeAndGenerate(opts);
-  minutaDiv.innerText = result.minuta;
-  // detalhe JSON pretty
-  detalheDiv.innerText = 'Detalhe de cálculo:\n' + JSON.stringify(result.detalhe, null, 2);
-});
-
-btnCopy.addEventListener('click', ()=> {
-  const txt = minutaDiv.innerText;
-  if(!txt) return alert('Nenhuma minuta para copiar.');
-  navigator.clipboard.writeText(txt).then(()=> alert('Minuta copiada para a área de transferência.'));
-});
-
-btnDownload.addEventListener('click', ()=> {
-  const txt = minutaDiv.innerText;
-  if(!txt) return alert('Nenhuma minuta para baixar.');
-  const blob = new Blob([txt],{type:'text/plain;charset=utf-8'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = 'minuta_sucumbencia.txt'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-});
-
-/* exemplo de preenchimento inicial (ajuda para testes) */
-document.getElementById('inputCont').value = `06/03/1989 a 25/12/1990
-26/12/1990 a 13/04/1993
-15/03/1993 a 31/12/2003
-01/10/2000 a 30/04/2004, 01/05/2004 a 31/05/2004, 01/06/2004 a 31/10/2007`;
-
 </script>
+
 </body>
 </html>
