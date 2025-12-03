@@ -102,85 +102,45 @@ button.secondary{background:#eef3ff;color:var(--accent);border:1px solid rgba(15
 </div>
 
 <script>
-/* ---------- utilitários ---------- */
-
-function normalizeInput(s){
-  if(!s) return '';
-  return s.replace(/\u2013|\u2014/g,'-').replace(/\t/g,' ').replace(/\r/g,'\n').replace(/\u00A0/g,' ');
-}
-
-function normalizeDateStr(s){
-  s = s.trim().replace(/\./g,'/').replace(/-/g,'/').replace(/\s+/g,'');
-  const parts = s.split('/');
-  if(parts.length !== 3) return s;
-  let [d,m,y] = parts;
-  d = d.padStart(2,'0'); m = m.padStart(2,'0');
-  if(y.length === 2){ const yi = parseInt(y,10); y = (yi < 50 ? 2000+yi : 1900+yi).toString(); }
-  return `${d}/${m}/${y}`;
-}
-
-function parseDMY(s){
-  const p = s.split('/');
-  if(p.length!==3) return null;
-  const d = parseInt(p[0],10), m = parseInt(p[1],10), y = parseInt(p[2],10);
-  if(isNaN(d)||isNaN(m)||isNaN(y)) return null;
-  if(d<1||d>31||m<1||m>12) return null;
-  return {d,m,y,abs: y*365 + m*30 + d};
-}
-
+/* utilitários de parsing e cálculo */
+function normalizeInput(s){ if(!s) return ''; return s.replace(/\u2013|\u2014/g,'-').replace(/\t/g,' ').replace(/\r/g,'\n').replace(/\u00A0/g,' '); }
+function normalizeDateStr(s){ s=s.trim().replace(/\./g,'/').replace(/-/g,'/').replace(/\s+/g,''); const p=s.split('/'); if(p.length!==3) return s; let [d,m,y]=p; d=d.padStart(2,'0'); m=m.padStart(2,'0'); if(y.length===2){ const yi=parseInt(y,10); y=(yi<50?2000+yi:1900+yi).toString(); } return `${d}/${m}/${y}`; }
+function parseDMY(s){ const p=s.split('/'); if(p.length!==3) return null; const d=parseInt(p[0],10), m=parseInt(p[1],10), y=parseInt(p[2],10); if(isNaN(d)||isNaN(m)||isNaN(y)) return null; if(d<1||d>31||m<1||m>12) return null; return {d,m,y,abs:y*365 + m*30 + d}; }
 function extractRanges(text){
   text = normalizeInput(text);
   text = text.replace(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/g,'$1/$2/$3');
   const re = /(\d{1,2}\/\d{1,2}\/\d{2,4})\s*(?:a|até|-|–|—|to|ao)\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/gi;
   let m; const out=[];
   while((m=re.exec(text))!==null){
-    const s = normalizeDateStr(m[1]); const e = normalizeDateStr(m[2]);
-    const ps = parseDMY(s); const pe = parseDMY(e);
+    const s=normalizeDateStr(m[1]), e=normalizeDateStr(m[2]); const ps=parseDMY(s), pe=parseDMY(e);
     if(ps && pe) out.push({startStr:s,endStr:e,start:ps,end:pe,sAbs:ps.abs,eAbs:pe.abs});
   }
   if(out.length===0){
-    const lines = text.split(/\n/);
+    const lines=text.split(/\n/);
     for(const line of lines){
-      const dates = [...line.matchAll(/(\d{1,2}\/\d{1,2}\/\d{2,4})/g)].map(r=>normalizeDateStr(r[1]));
+      const dates=[...line.matchAll(/(\d{1,2}\/\d{1,2}\/\d{2,4})/g)].map(r=>normalizeDateStr(r[1]));
       for(let i=0;i+1<dates.length;i+=2){
-        const s = dates[i], e = dates[i+1]; const ps = parseDMY(s), pe = parseDMY(e);
+        const s=dates[i], e=dates[i+1]; const ps=parseDMY(s), pe=parseDMY(e);
         if(ps && pe) out.push({startStr:s,endStr:e,start:ps,end:pe,sAbs:ps.abs,eAbs:pe.abs});
       }
     }
   }
   return out;
 }
-
 function mergeIntervals(arr){
-  if(!arr || arr.length===0) return [];
-  const conv = arr.map(it=>({s:it.sAbs,e:it.eAbs,startStr:it.startStr,endStr:it.endStr}));
+  if(!arr||arr.length===0) return [];
+  const conv=arr.map(it=>({s:it.sAbs,e:it.eAbs,startStr:it.startStr,endStr:it.endStr}));
   conv.sort((a,b)=>a.s-b.s||a.e-b.e);
   const res=[]; let cur={...conv[0]};
-  for(let i=1;i<conv.length;i++){
-    const nx=conv[i];
-    if(nx.s <= cur.e + 1){
-      if(nx.e>cur.e){ cur.e=nx.e; cur.endStr=nx.endStr; }
-    } else { res.push({...cur}); cur={...nx}; }
-  }
+  for(let i=1;i<conv.length;i++){ const nx=conv[i]; if(nx.s<=cur.e+1){ if(nx.e>cur.e){ cur.e=nx.e; cur.endStr=nx.endStr; } } else { res.push({...cur}); cur={...nx}; } }
   res.push({...cur});
   return res.map(it=>({startStr:it.startStr,endStr:it.endStr,sAbs:it.s,eAbs:it.e}));
 }
-
 function daysFromAbs(s,e){ return Math.max(0, e - s + 1); }
-
-function parseMoney(s){
-  if(s===undefined||s===null||s==='') return 0;
-  s = String(s).trim();
-  if(s.indexOf(',')>-1 && s.indexOf('.')>-1) s = s.replace(/\./g,'').replace(',','.');
-  else if(s.indexOf(',')>-1) s = s.replace(',','.');
-  const v = parseFloat(s);
-  return isNaN(v)?0:v;
-}
-
+function parseMoney(s){ if(s===undefined||s===null||s==='') return 0; s=String(s).trim(); if(s.indexOf(',')>-1 && s.indexOf('.')>-1) s=s.replace(/\./g,'').replace(',','.'); else if(s.indexOf(',')>-1) s=s.replace(',','.'); const v=parseFloat(s); return isNaN(v)?0:v; }
 function roundTo(n,dec=1){ const f=Math.pow(10,dec); return Math.round(n*f)/f; }
 
-/* ---------- cálculo e geração da minuta (somente minuta) ---------- */
-
+/* opções da UI para coleta */
 function gatherOptions(){
   return {
     controvertidosText: document.getElementById('inputCont').value,
@@ -195,115 +155,123 @@ function gatherOptions(){
   };
 }
 
+/* função principal que gera apenas a minuta */
 function computeMinuta(opts){
   const pairsCont = extractRanges(opts.controvertidosText);
   const pairsAcol = extractRanges(opts.acolhidosText);
-
   const validCont = pairsCont.filter(it=>it.sAbs <= it.eAbs);
   const validAcol = pairsAcol.filter(it=>it.sAbs <= it.eAbs);
-
   const mergedCont = mergeIntervals(validCont);
   const mergedAcol = mergeIntervals(validAcol);
-
   const diasCont = mergedCont.reduce((s,it)=> s + daysFromAbs(it.sAbs,it.eAbs),0);
   const diasAcol = mergedAcol.reduce((s,it)=> s + daysFromAbs(it.sAbs,it.eAbs),0);
-
   const propTempo = diasCont === 0 ? 0 : diasAcol / diasCont;
 
+  // danos morais: per sua instrução, quando marcado, são sempre considerados rejeitados e penalizam a autora
   let propDecDanos = 0;
-  if(opts.houveDanos && opts.valorCausa > 0){
-    propDecDanos = Math.min(1, opts.valorDanos / opts.valorCausa);
+  if(opts.houveDanos){
+    if(opts.valorCausa > 0) propDecDanos = Math.min(1, opts.valorDanos / opts.valorCausa);
+    else propDecDanos = 0;
   }
 
+  // êxito ponderado do autor (proporção de proveito material ajustado por danos)
   const exitoPonderado = propTempo * (1 - propDecDanos);
-  let decaimentoP = 1 - exitoPonderado;
-
-  // aplicar minima
+  let authorShare = exitoPonderado;                 // fracção (0..1) do proveito da autora
+  let defendantShare = 1 - authorShare;            // fracção do réu
   const minimo = opts.minimoPercent / 100;
-  let authorShare = exitoPonderado;
-  let defendantShare = decaimentoP;
-  let minimaAplicada = null;
+
+  // aplicar sucumbência mínima: se uma das partes tiver êxito inferior ao mínimo -> considera-se vencida integralmente
+  let minimaAplicada = null; // 'autor' -> autora considerada vencida; 'inss' -> inss considerado vencido
   if(authorShare < minimo){
-    authorShare = 0; defendantShare = 1; minimaAplicada = 'autor';
+    // autora obteve êxito ínfimo -> considerada vencida integralmente
+    authorShare = 0;
+    defendantShare = 1;
+    minimaAplicada = 'autor';
   } else if(defendantShare < minimo){
-    defendantShare = 0; authorShare = 1; minimaAplicada = 'inss';
+    // INSS (réu) obteve êxito ínfimo -> réu considerado vencido integralmente
+    defendantShare = 0;
+    authorShare = 1;
+    minimaAplicada = 'inss';
   }
 
-  // honorários totais = 10%
+  // total honorários = 10% sempre; alocação proporcional
   const totalHonorarios = 10;
-  let honorReu = authorShare * totalHonorarios; // réu paga ao autor
-  let honorAutor = defendantShare * totalHonorarios; // autor paga ao réu
+  // percentuais que irão constar na minuta (em %)
+  const pct_to_author = roundTo(authorShare * totalHonorarios, opts.casas);    // réu paga ao autor
+  const pct_to_reu = roundTo(defendantShare * totalHonorarios, opts.casas);   // autor paga ao réu
 
-  honorReu = roundTo(honorReu, opts.casas);
-  honorAutor = roundTo(honorAutor, opts.casas);
+  // preparar base textual conforme súmula/benefício
+  const baseText = opts.houveBeneficio
+    ? "nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor da condenação, na forma da Súmula 111 do STJ"
+    : "em 10% (dez por cento) sobre o valor atualizado da causa";
 
-  const sucessoPct = roundTo(authorShare * 100, 1);
-
-  // montar minuta
+  // montar a minuta
   let minuta = '';
 
   if(opts.houveBeneficio){
-    // Versão concessão (Súmula 111)
-    minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço${opts.houveDanos ? ' e a incidência de pedido de danos morais' : ''}, a parte autora obteve êxito ponderado de ${sucessoPct.toFixed(1)}% sobre a demanda.\n\n`;
-    minuta += `Em razão da sucumbência recíproca, fixo a verba honorária nos patamares mínimos do art. 85, §3º, do CPC, incidentes sobre o valor da condenação, nos termos da Súmula 111 do STJ.\n\n`;
+    // versão concessão (Súmula 111 aplicável: honorários incidentes sobre condenação)
+    minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço${opts.houveDanos ? ' e o pedido de danos morais (considerado na proporcionalidade, por ter sido suscitada)' : ''}, a parte autora obteve êxito ponderado de ${roundTo(authorShare*100,1).toFixed(1)}% sobre a demanda.\n\n`;
+    minuta += `Em razão da sucumbência recíproca, fixo a verba honorária ${baseText}.\n\n`;
 
-    // mínimas / proporcionais com redação que evita "0%"
+    // casos:
     if(minimaAplicada === 'autor'){
-      minuta += `Verifica-se sucumbência mínima em desfavor da parte autora (êxito inferior a ${opts.minimoPercent}%), razão pela qual os ônus sucumbenciais são integralmente suportados pelo INSS.\n\n`;
-      minuta += `Não há verba honorária devida pelo réu ao autor.`;
-      minuta += `\nCondeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor das parcelas vencidas.\n\n`;
+      // autora considerada vencida integralmente -> autora arca integralmente com ônus sucumbenciais
+      minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos (${opts.minimoPercent}%), devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
+      // réu paga ao autor? Não — réu é vencedor (INSS venceu?) Wait: authorShare=0 => author lost -> author pays all -> pct_to_author=0, pct_to_reu=10
+      // portanto: condenar autora a pagar 10% ao reu (sobre condenação? base depende: when benefit conceded, base is condenacao)
+      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor das parcelas vencidas (na forma da Súmula 111). Não há verba devida pelo réu ao autor.\n\n`;
+      // AJG handling below
     } else if(minimaAplicada === 'inss'){
-      minuta += `Verifica-se sucumbência mínima em desfavor do INSS (êxito do autor superior a ${100-opts.minimoPercent}%), razão pela qual os ônus sucumbenciais são integralmente suportados pela parte autora.\n\n`;
-      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor das parcelas vencidas.\n`;
-      minuta += `\nNão há verba honorária devida pela parte autora ao réu.\n\n`;
+      // réu considerado vencido integralmente -> réu paga tudo
+      minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos (${opts.minimoPercent}%), motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
+      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor das parcelas vencidas (na forma da Súmula 111). Não há verba devida pela parte autora ao réu.\n\n`;
     } else {
-      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${honorReu.toFixed(opts.casas)}% do valor das parcelas vencidas. `;
-      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${honorAutor.toFixed(opts.casas)}% do valor das parcelas vencidas.\n\n`;
+      // proporcional
+      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${pct_to_author.toFixed(opts.casas)}% do valor das parcelas vencidas. `;
+      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${pct_to_reu.toFixed(opts.casas)}% do valor das parcelas vencidas.\n\n`;
     }
 
-    // AJG e custas/resarcimento
+    // AJG e custas/ressarcimento
     if(opts.ajg){
       minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora fica suspensa, nos termos do art. 98, §3º, do CPC, por ser beneficiária da gratuidade de justiça.\n\n`;
       minuta += `Partes isentas de custas processuais.\n`;
     } else {
-      // sem AJG: mencionar ressarcimento do INSS apenas quando aplicável
-      if(minimaAplicada === 'autor'){
-        // INSS vencedor — não há custas adiantadas pela autora (se não tem AJG); mas se houve adiantamento, INSS ressarcirá
-        minuta += `Condeno o INSS ao ressarcimento proporcional das custas adiantadas pela parte autora.\n\n`;
-      } else {
-        minuta += `Condeno o INSS ao ressarcimento proporcional das custas adiantadas pela parte autora.\n\n`;
-      }
+      // sem AJG: INSS ressarcirá custas adiantadas pela autora (quando houver adiantamento)
+      minuta += `Condeno o INSS ao ressarcimento proporcional das custas adiantadas pela parte autora.\n\n`;
     }
 
   } else {
-    // Versão não concessão (honorários sobre o valor da causa)
-    minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço${opts.houveDanos ? ' e a presença de pedido de danos morais' : ''}, a parte autora obteve êxito ponderado de ${sucessoPct.toFixed(1)}% sobre a demanda, resultando em sucumbência recíproca.\n\n`;
+    // versão não concessão (sem súmula): honorários 10% sobre valor da causa e distribuídos proporcionalmente
+    minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço${opts.houveDanos ? ' e a improcedência do pedido de danos morais' : ''}, a parte autora obteve êxito ponderado de ${roundTo(authorShare*100,1).toFixed(1)}% sobre a demanda.\n\n`;
     minuta += `Em razão disso, considerando a proporcionalidade exigida pelos arts. 85, §§ 2º e 3º, e 90, caput, do CPC, condeno as partes ao pagamento de honorários advocatícios recíprocos, fixando-os em 10% (dez por cento) sobre o valor atualizado da causa.\n\n`;
 
     if(minimaAplicada === 'autor'){
-      minuta += `Verifica-se sucumbência mínima em desfavor da parte autora (êxito inferior a ${opts.minimoPercent}%), razão pela qual os ônus sucumbenciais são integralmente suportados pelo INSS.\n\n`;
-      minuta += `Não há verba honorária devida pelo réu ao autor.\nCondeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor atualizado da causa.\n\n`;
+      // autora considerada vencida integralmente -> autora paga tudo
+      minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos (${opts.minimoPercent}%), devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
+      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor atualizado da causa. Não há verba devida pelo réu ao autor.\n\n`;
     } else if(minimaAplicada === 'inss'){
-      minuta += `Verifica-se sucumbência mínima em desfavor do INSS (êxito do autor superior a ${100-opts.minimoPercent}%), razão pela qual os ônus sucumbenciais são integralmente suportados pela parte autora.\n\n`;
-      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor atualizado da causa.\nNão há verba honorária devida pela parte autora ao réu.\n\n`;
+      // inss vencido integralmente -> inss pays all
+      minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos (${opts.minimoPercent}%), motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
+      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor atualizado da causa. Não há verba devida pela parte autora ao réu.\n\n`;
     } else {
-      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${honorReu.toFixed(opts.casas)}% do valor atualizado da causa. `;
-      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${honorAutor.toFixed(opts.casas)}% do valor atualizado da causa.\n\n`;
+      // proporcional
+      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${pct_to_author.toFixed(opts.casas)}% do valor atualizado da causa. `;
+      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${pct_to_reu.toFixed(opts.casas)}% do valor atualizado da causa.\n\n`;
     }
 
+    // AJG / custas
     if(opts.ajg){
       minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora fica suspensa, nos termos do art. 98, §3º, do CPC, por ser beneficiária da gratuidade de justiça.\n\n`;
       minuta += `Partes isentas de custas processuais.\n`;
     } else {
-      minuta += `Condeno o INSS ao ressarcimento proporcional das custas adiantadas pela parte autora.\n\n`;
+      minuta += `Condeno o INSS ao ressarcimento proporcional das custas adiantadas pela parte autora, se houver comprovação de adiantamento.\n\n`;
     }
   }
 
-  return {minuta, detalhe:{diasCont,diasAcol,propTempo,propDecDanos:propDecDanos,exitoPonderado,authorShare,defendantShare,minimaAplicada,honorReu,honorAutor}};
+  return {minuta, detalhe:{diasCont,diasAcol,propTempo,propDecDanos:propDecDanos,exitoPonderado,authorShare,defendantShare,minimaAplicada,pct_to_author,pct_to_reu}};
 }
 
-/* ---------- UI hooks ---------- */
-
+/* UI hooks */
 document.getElementById('selectDanos').addEventListener('change', ()=>{
   document.getElementById('boxDanos').style.display = document.getElementById('selectDanos').value === 'sim' ? 'block' : 'none';
 });
@@ -312,7 +280,7 @@ document.getElementById('btnCalc').addEventListener('click', ()=>{
   const opts = gatherOptions();
   const res = computeMinuta(opts);
   document.getElementById('minuta').innerText = res.minuta;
-  document.getElementById('detalhe').innerText = ''; // only minuta requested
+  document.getElementById('detalhe').innerText = ''; // somente minuta
 });
 
 document.getElementById('btnCopy').addEventListener('click', ()=>{
@@ -329,7 +297,7 @@ document.getElementById('btnDownload').addEventListener('click', ()=>{
   const a = document.createElement('a'); a.href = url; a.download = 'minuta_sucumbencia.txt'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 });
 
-// initialize fields empty (avoid prefill)
+// initialize empty (avoid prefill)
 document.getElementById('inputCont').value = '';
 document.getElementById('inputAcol').value = '';
 </script>
