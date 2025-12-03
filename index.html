@@ -35,8 +35,8 @@ button.secondary{background:#eef3ff;color:var(--accent);border:1px solid rgba(15
 
   <div class="grid">
     <div class="card" aria-live="polite">
-      <label>Todos os períodos controvertidos (cole planilha, pdf ou texto livre)</label>
-      <textarea id="inputCont" placeholder="Cole aqui (ex.: 01/01/1990 a 31/12/1994; 01/03/1998 a 28/02/2001)"></textarea>
+      <label>Todos os períodos controvertidos (cole planilha, PDF convertido ou texto livre)</label>
+      <textarea id="inputCont" placeholder="Ex.: 01/01/1990 a 31/12/1994; 01/03/1998 a 28/02/2001"></textarea>
 
       <label>Períodos acolhidos (deferidos) — opcional</label>
       <textarea id="inputAcol" placeholder="Cole apenas os períodos reconhecidos a favor do autor"></textarea>
@@ -102,10 +102,12 @@ button.secondary{background:#eef3ff;color:var(--accent);border:1px solid rgba(15
 </div>
 
 <script>
-/* utilitários de parsing e cálculo */
+/* ---------- utilitários ---------- */
+
 function normalizeInput(s){ if(!s) return ''; return s.replace(/\u2013|\u2014/g,'-').replace(/\t/g,' ').replace(/\r/g,'\n').replace(/\u00A0/g,' '); }
 function normalizeDateStr(s){ s=s.trim().replace(/\./g,'/').replace(/-/g,'/').replace(/\s+/g,''); const p=s.split('/'); if(p.length!==3) return s; let [d,m,y]=p; d=d.padStart(2,'0'); m=m.padStart(2,'0'); if(y.length===2){ const yi=parseInt(y,10); y=(yi<50?2000+yi:1900+yi).toString(); } return `${d}/${m}/${y}`; }
 function parseDMY(s){ const p=s.split('/'); if(p.length!==3) return null; const d=parseInt(p[0],10), m=parseInt(p[1],10), y=parseInt(p[2],10); if(isNaN(d)||isNaN(m)||isNaN(y)) return null; if(d<1||d>31||m<1||m>12) return null; return {d,m,y,abs:y*365 + m*30 + d}; }
+
 function extractRanges(text){
   text = normalizeInput(text);
   text = text.replace(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/g,'$1/$2/$3');
@@ -127,6 +129,7 @@ function extractRanges(text){
   }
   return out;
 }
+
 function mergeIntervals(arr){
   if(!arr||arr.length===0) return [];
   const conv=arr.map(it=>({s:it.sAbs,e:it.eAbs,startStr:it.startStr,endStr:it.endStr}));
@@ -136,11 +139,13 @@ function mergeIntervals(arr){
   res.push({...cur});
   return res.map(it=>({startStr:it.startStr,endStr:it.endStr,sAbs:it.s,eAbs:it.e}));
 }
+
 function daysFromAbs(s,e){ return Math.max(0, e - s + 1); }
 function parseMoney(s){ if(s===undefined||s===null||s==='') return 0; s=String(s).trim(); if(s.indexOf(',')>-1 && s.indexOf('.')>-1) s=s.replace(/\./g,'').replace(',','.'); else if(s.indexOf(',')>-1) s=s.replace(',','.'); const v=parseFloat(s); return isNaN(v)?0:v; }
 function roundTo(n,dec=1){ const f=Math.pow(10,dec); return Math.round(n*f)/f; }
 
-/* opções da UI para coleta */
+/* ---------- lógica de negócio ---------- */
+
 function gatherOptions(){
   return {
     controvertidosText: document.getElementById('inputCont').value,
@@ -155,7 +160,6 @@ function gatherOptions(){
   };
 }
 
-/* função principal que gera apenas a minuta */
 function computeMinuta(opts){
   const pairsCont = extractRanges(opts.controvertidosText);
   const pairsAcol = extractRanges(opts.acolhidosText);
@@ -165,124 +169,109 @@ function computeMinuta(opts){
   const mergedAcol = mergeIntervals(validAcol);
   const diasCont = mergedCont.reduce((s,it)=> s + daysFromAbs(it.sAbs,it.eAbs),0);
   const diasAcol = mergedAcol.reduce((s,it)=> s + daysFromAbs(it.sAbs,it.eAbs),0);
+
   const propTempo = diasCont === 0 ? 0 : diasAcol / diasCont;
 
-  // danos morais: per sua instrução, quando marcado, são sempre considerados rejeitados e penalizam a autora
+  // danos morais: por sua instrução, quando marcado são considerados improcedentes e penalizam a autora
   let propDecDanos = 0;
-  if(opts.houveDanos){
-    if(opts.valorCausa > 0) propDecDanos = Math.min(1, opts.valorDanos / opts.valorCausa);
-    else propDecDanos = 0;
+  if(opts.houveDanos && opts.valorCausa > 0){
+    propDecDanos = Math.min(1, opts.valorDanos / opts.valorCausa);
   }
 
-  // êxito ponderado do autor (proporção de proveito material ajustado por danos)
   const exitoPonderado = propTempo * (1 - propDecDanos);
-  let authorShare = exitoPonderado;                 // fracção (0..1) do proveito da autora
-  let defendantShare = 1 - authorShare;            // fracção do réu
-  const minimo = opts.minimoPercent / 100;
+  let authorShare = exitoPonderado;
+  let defendantShare = 1 - authorShare;
 
-  // aplicar sucumbência mínima: se uma das partes tiver êxito inferior ao mínimo -> considera-se vencida integralmente
-  let minimaAplicada = null; // 'autor' -> autora considerada vencida; 'inss' -> inss considerado vencido
+  const minimo = opts.minimoPercent / 100;
+  let minimaAplicada = null; // 'autor' | 'inss' | null
+
   if(authorShare < minimo){
-    // autora obteve êxito ínfimo -> considerada vencida integralmente
-    authorShare = 0;
-    defendantShare = 1;
-    minimaAplicada = 'autor';
+    authorShare = 0; defendantShare = 1; minimaAplicada = 'autor';
   } else if(defendantShare < minimo){
-    // INSS (réu) obteve êxito ínfimo -> réu considerado vencido integralmente
-    defendantShare = 0;
-    authorShare = 1;
-    minimaAplicada = 'inss';
+    defendantShare = 0; authorShare = 1; minimaAplicada = 'inss';
   }
 
-  // total honorários = 10% sempre; alocação proporcional
   const totalHonorarios = 10;
-  // percentuais que irão constar na minuta (em %)
-  const pct_to_author = roundTo(authorShare * totalHonorarios, opts.casas);    // réu paga ao autor
-  const pct_to_reu = roundTo(defendantShare * totalHonorarios, opts.casas);   // autor paga ao réu
+  const pct_to_author = roundTo(authorShare * totalHonorarios, opts.casas); // réu paga ao autor
+  const pct_to_reu = roundTo(defendantShare * totalHonorarios, opts.casas); // autor paga ao réu
 
-  // preparar base textual conforme súmula/benefício
-  const baseText = opts.houveBeneficio
-    ? "nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor da condenação, na forma da Súmula 111 do STJ"
-    : "em 10% (dez por cento) sobre o valor atualizado da causa";
+  // build minute according to corrected logic
+  const authorSharePctText = roundTo(authorShare * 100, 1).toFixed(1);
+  const baseCondenacaoText = "nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor da condenação, na forma da Súmula 111 do STJ";
+  const baseCausaText = "10% (dez por cento) sobre o valor atualizado da causa";
 
-  // montar a minuta
   let minuta = '';
 
-//
-// GERAÇÃO DA MINUTA — corrigida para:
-// 1) excluir texto de sucumbência recíproca quando há sucumbência mínima
-// 2) aplicar Súmula 111 sem mencionar "10%"
-// 3) aplicar proporcionalidade somente quando NÃO houver sucumbência mínima
-//
+  if(opts.houveBeneficio){
+    // beneficio concedido -> súmula 111 applies to base
+    if(!minimaAplicada){
+      minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço${opts.houveDanos ? ' e a improcedência do pedido de danos morais' : ''}, a parte autora obteve êxito ponderado de ${authorSharePctText}% sobre a demanda.\n\n`;
+      minuta += `Em razão da sucumbência recíproca, fixo a verba honorária ${baseCondenacaoText}.\n\n`;
+    }
 
-if(opts.houveBeneficio){
-  // BENEFÍCIO CONCEDIDO → Súmula 111
+    if(minimaAplicada === 'autor'){
+      minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos, devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
+      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, fixados ${baseCondenacaoText}, atribuídos integralmente ao réu. Não há verba devida pelo réu ao autor.\n\n`;
+    } else if(minimaAplicada === 'inss'){
+      minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos, motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
+      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, fixados ${baseCondenacaoText}, atribuídos integralmente à parte autora. Não há verba devida pela parte autora ao réu.\n\n`;
+    } else {
+      // proportional but using Súmula base
+      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, fixados ${baseCondenacaoText}, no percentual proporcional de ${pct_to_author.toFixed(opts.casas)}% do respetivo montante. `;
+      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, fixados ${baseCondenacaoText}, no percentual proporcional de ${pct_to_reu.toFixed(opts.casas)}% do respetivo montante.\n\n`;
+    }
 
-  // Exibe apenas se NÃO houver sucumbência mínima
-  if(!minimaAplicada){
-    minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço${opts.houveDanos ? ' e a improcedência do pedido de danos morais' : ''}, a parte autora obteve êxito ponderado de ${roundTo(authorShare*100,1).toFixed(1)}% sobre a demanda.\n\n`;
-    minuta += `A verba honorária é fixada nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor da condenação, na forma da Súmula 111 do STJ.\n\n`;
-  }
-
-  // CASOS DE SUCUMBÊNCIA
-  if(minimaAplicada === 'autor'){
-    // autora perde tudo
-    minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos, devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
-    minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, calculados nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor da condenação, na forma da Súmula 111 do STJ. Não há verba devida pelo réu ao autor.\n\n`;
-
-  } else if(minimaAplicada === 'inss'){
-    // INSS perde tudo
-    minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos, motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
-    minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, calculados nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor da condenação, na forma da Súmula 111 do STJ. Não há verba devida pela parte autora ao réu.\n\n`;
-
-  } else {
-    // RECÍPROCA — proporcionalidade
-    minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, proporcionais ao decaimento do INSS (${pct_to_author.toFixed(opts.casas)}% do montante devido). `;
-    minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, proporcionais ao seu decaimento (${pct_to_reu.toFixed(opts.casas)}% do montante devido).\n\n`;
-  }
-
-  // AJG E CUSTAS
-  if(opts.ajg){
-    minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora fica suspensa, nos termos do art. 98, §3º, do CPC, por ser beneficiária da gratuidade da justiça.\n\n`;
-    minuta += `Partes isentas de custas processuais.\n`;
-  } else {
-    minuta += `Concedo ao INSS ao ressarcimento proporcional das custas adiantadas pela parte autora, se houver comprovação de adiantamento.\n\n`;
-  }
-
-} else {
-  // BENEFÍCIO NÃO CONCEDIDO — base = valor da causa
-
-  // Exibe apenas se NÃO houver sucumbência mínima
-  if(!minimaAplicada){
-    minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço${opts.houveDanos ? ' e a improcedência do pedido de danos morais' : ''}, a parte autora obteve êxito ponderado de ${roundTo(authorShare*100,1).toFixed(1)}% sobre a demanda.\n\n`;
-    minuta += `Os honorários advocatícios são fixados em observância aos arts. 85, §§2º e 3º, e 90 do CPC, no percentual mínimo, incidentes sobre o valor atualizado da causa.\n\n`;
-  }
-
-  if(minimaAplicada === 'autor'){
-    minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos, devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
-    minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor atualizado da causa. Não há verba devida pelo réu ao autor.\n\n`;
-
-  } else if(minimaAplicada === 'inss'){
-    minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos, motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
-    minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, nos patamares mínimos do art. 85, §3º do CPC, incidentes sobre o valor atualizado da causa. Não há verba devida pela parte autora ao réu.\n\n`;
+    if(opts.ajg){
+      minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora fica suspensa, nos termos do art. 98, §3º, do CPC, por ser beneficiária da gratuidade de justiça.\n\n`;
+      minuta += `Partes isentas de custas processuais.\n`;
+    } else {
+      minuta += `Condeno o INSS ao ressarcimento proporcional das custas adiantadas pela parte autora, se houver comprovação de adiantamento.\n\n`;
+    }
 
   } else {
-    // proporcional
-    minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, proporcionais ao decaimento do INSS (${pct_to_author.toFixed(opts.casas)}% do montante devido). `;
-    minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, proporcionais ao seu decaimento (${pct_to_reu.toFixed(opts.casas)}% do montante devido).\n\n`;
+    // benefit denied -> 10% sobre valor da causa
+    if(!minimaAplicada){
+      minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço${opts.houveDanos ? ' e a improcedência do pedido de danos morais' : ''}, a parte autora obteve êxito ponderado de ${authorSharePctText}% sobre a demanda.\n\n`;
+      minuta += `Em razão disso, considerando a proporcionalidade exigida pelos arts. 85, §§ 2º e 3º, e 90, caput, do CPC, condeno as partes ao pagamento de honorários advocatícios recíprocos, fixando-os em ${baseCausaText}.\n\n`;
+    }
+
+    if(minimaAplicada === 'autor'){
+      minuta += `Verifica-se que a parte autora obteve êxito mínimo em seus pedidos, devendo arcar integralmente com os ônus sucumbenciais.\n\n`;
+      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor atualizado da causa. Não há verba devida pelo réu ao autor.\n\n`;
+    } else if(minimaAplicada === 'inss'){
+      minuta += `Verifica-se que a parte autora decaiu de parcela mínima de seus pedidos, motivo pelo qual não deve arcar com os ônus sucumbenciais.\n\n`;
+      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, que fixo em ${totalHonorarios.toFixed(opts.casas)}% do valor atualizado da causa. Não há verba devida pela parte autora ao réu.\n\n`;
+    } else {
+      minuta += `Condeno o réu ao pagamento de honorários advocatícios em favor do procurador da parte autora, no percentual proporcional de ${pct_to_author.toFixed(opts.casas)}% dos 10% fixados. `;
+      minuta += `Condeno a parte autora ao pagamento de honorários advocatícios em favor do procurador do réu, no percentual proporcional de ${pct_to_reu.toFixed(opts.casas)}% dos 10% fixados.\n\n`;
+    }
+
+    if(opts.ajg){
+      minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora fica suspensa, nos termos do art. 98, §3º, do CPC, por ser beneficiária da gratuidade de justiça.\n\n`;
+      minuta += `Partes isentas de custas processuais.\n`;
+    } else {
+      minuta += `Condeno o INSS ao ressarcimento proporcional das custas adiantadas pela parte autora, se houver comprovação de adiantamento.\n\n`;
+    }
   }
 
-  // AJG / custas
-  if(opts.ajg){
-    minuta += `A exigibilidade dos honorários advocatícios fixados em desfavor da parte autora fica suspensa, nos termos do art. 98, §3º, do CPC, por ser beneficiária da gratuidade de justiça.\n\n`;
-    minuta += `Partes isentas de custas processuais.\n`;
-  } else {
-    minuta += `Condeno o INSS ao ressarcimento proporcional das custas adiantadas pela parte autora, se houver comprovação de adiantamento.\n\n`;
-  }
+  const detalhe = {
+    diasCont,
+    diasAcol,
+    propTempo,
+    propDecDanos,
+    exitoPonderado,
+    authorShare,
+    defendantShare,
+    minimaAplicada,
+    pct_to_author,
+    pct_to_reu
+  };
+
+  return {minuta, detalhe};
 }
 
+/* ---------- UI hooks ---------- */
 
-/* UI hooks */
 document.getElementById('selectDanos').addEventListener('change', ()=>{
   document.getElementById('boxDanos').style.display = document.getElementById('selectDanos').value === 'sim' ? 'block' : 'none';
 });
@@ -291,7 +280,7 @@ document.getElementById('btnCalc').addEventListener('click', ()=>{
   const opts = gatherOptions();
   const res = computeMinuta(opts);
   document.getElementById('minuta').innerText = res.minuta;
-  document.getElementById('detalhe').innerText = ''; // somente minuta
+  document.getElementById('detalhe').innerText = ''; // somente minuta solicitada
 });
 
 document.getElementById('btnCopy').addEventListener('click', ()=>{
@@ -308,7 +297,7 @@ document.getElementById('btnDownload').addEventListener('click', ()=>{
   const a = document.createElement('a'); a.href = url; a.download = 'minuta_sucumbencia.txt'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 });
 
-// initialize empty (avoid prefill)
+// prevent prefill
 document.getElementById('inputCont').value = '';
 document.getElementById('inputAcol').value = '';
 </script>
