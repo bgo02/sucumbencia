@@ -148,125 +148,151 @@ function toggleDanos() {
 /* --------------------------
    Cálculo da sucumbência
 ----------------------------*/
-function calcular() {
-    const pedidos = extrairPeriodos(document.getElementById("entradaPeriodos").value);
-    const reconhecidos = extrairPeriodos(document.getElementById("entradaReconhecidos").value);
+function calcularSucumbencia() {
+    const brutoPeriodos = document.getElementById("periodos").value.trim();
+    const ajg = document.getElementById("ajg").value === "sim";
+    const beneficioConcedido = document.getElementById("beneficioConcedido").value === "sim";
 
-    const ajg = document.getElementById("ajg").value;
-    const temDanos = document.getElementById("temDanos").value;
-    const concessao = document.getElementById("concessao").value;
+    const danosMorais = document.getElementById("danosMorais").value === "sim";
+    let valorCausa = 0;
+    let valorDanosMorais = 0;
 
-    if (pedidos.length === 0) {
-        document.getElementById("resultado").textContent = "Nenhum período válido identificado nos pedidos.";
+    if (danosMorais) {
+        valorCausa = parseFloat(document.getElementById("valorCausa").value || 0);
+        valorDanosMorais = parseFloat(document.getElementById("valorDanosMorais").value || 0);
+    }
+
+    // --- PARTE 1: PARSE DOS PERÍODOS (limpeza robusta) ---
+    let linhas = brutoPeriodos
+        .replace(/\t/g, " ")
+        .replace(/–/g, "-")
+        .replace(/;/g, "\n")
+        .replace(/ {2,}/g, " ")
+        .split("\n")
+        .map(l => l.trim())
+        .filter(l => l.length > 0);
+
+    let totalPedidos = linhas.length;
+    let totalReconhecidos = 0;
+
+    linhas.forEach(l => {
+        if (/reconhecido/i.test(l)) totalReconhecidos++;
+    });
+
+    // Evita divisão por zero
+    if (totalPedidos === 0) {
+        document.getElementById("resultado").innerHTML = "Nenhum período válido informado.";
         return;
     }
 
-    /* Cálculo dos dias postulados e reconhecidos */
-    let totalDias = 0;
-    pedidos.forEach(p => totalDias += diasEntre(p.ini, p.fim));
+    // --- PARTE 2: CÁLCULO DO DECAIMENTO ---
+    // Proporção reconhecida (autor) – apenas períodos
+    const proporcaoAutor = totalReconhecidos / totalPedidos;
 
-    let diasReconhecidos = 0;
-    reconhecidos.forEach(r => diasReconhecidos += diasEntre(r.ini, r.fim));
+    // Se há danos morais, eles entram proporcionalmente ao valor
+    let proporcaoFinalAutor = proporcaoAutor;
 
-    /* Proporção */
-    let proporcao = diasReconhecidos / totalDias;
-    if (proporcao > 1) proporcao = 1;
+    if (danosMorais && valorCausa > 0) {
+        const basePeriodos = (valorCausa - valorDanosMorais);
+        if (basePeriodos > 0) {
+            const proporcaoPeriodos = basePeriodos / valorCausa;
+            const proporcaoDM = valorDanosMorais / valorCausa;
 
-    let sucAutor = 1 - proporcao;
-    let sucINSS = proporcao;
+            // Danos morais contam como 100% pedidos → 0% reconhecidos ou 100% reconhecidos
+            const danosMoraisReconhecidos = document.getElementById("danosMoraisReconhecidos").value === "sim";
 
-    /* Danos morais */
-    let valorCausa = 0, valorDanos = 0, proporcaoDanos = 0;
-
-    if (temDanos === "sim") {
-        valorCausa = Number(document.getElementById("valorCausa").value || 0);
-        valorDanos = Number(document.getElementById("valorDanos").value || 0);
-        proporcaoDanos = valorDanos / valorCausa;
+            proporcaoFinalAutor =
+                proporcaoAutor * proporcaoPeriodos +
+                (danosMoraisReconhecidos ? 1 : 0) * proporcaoDM;
+        }
     }
 
-    /* Honorários fixos 10% */
-    const pct = 10;
+    const decaimentoAutor = 1 - proporcaoFinalAutor;
+    const decaimentoINSS = proporcaoFinalAutor;
 
-    /* Sucumbência mínima (<10%) */
-    let minimaAutor = sucAutor < 0.10;
-    let minimaINSS = sucINSS < 0.10;
+    // --- PARTE 3: SUCUMBÊNCIA MÍNIMA ---
+    let sucumbenciaMinima = null; // "autor" | "inss" | null
 
-    /* Texto jurídico */
+    if (decaimentoAutor < 0.10) sucumbenciaMinima = "autor";
+    if (decaimentoINSS < 0.10) sucumbenciaMinima = "inss";
+
+    // --- PARTE 4: DEFINIÇÃO DA BASE DE CÁLCULO (Súmula 111) ---
+    const baseHonorariosINSS = valorCausa; // INSS sempre paga % sobre valor da causa — regra processual
+    let baseHonorariosAutor;
+
+    if (beneficioConcedido) {
+        baseHonorariosAutor = "condenação"; // conforme Súmula 111
+    } else {
+        baseHonorariosAutor = valorCausa;
+    }
+
+    // --- PARTE 5: PERCENTUAIS DE HONORÁRIOS (fixos em 10%) ---
+    let percAutor, percINSS;
+
+    if (sucumbenciaMinima === "autor") {
+        percAutor = 0;
+        percINSS = 1; // 10% integral
+    } else if (sucumbenciaMinima === "inss") {
+        percAutor = 1;
+        percINSS = 0;
+    } else {
+        // proporção normal
+        percAutor = decaimentoAutor;
+        percINSS = decaimentoINSS;
+    }
+
+    // Ajuste para evitar textos com "0%"
+    percAutor = Math.round(percAutor * 10000) / 100; // arredonda a centésimo
+    percINSS = Math.round(percINSS * 10000) / 100;
+
+    // --- PARTE 6: CONSTRUÇÃO DA MINUTA JUDICIAL ---
     let texto = "";
 
-    /* --------------------------
-       Minuta - Concessão
-    ----------------------------*/
-    if (concessao === "sim") {
-        texto += "III – Da Sucumbência\n\n";
+    // ======================
+    // III — DA SUCUMBÊNCIA
+    // ======================
 
-        if (temDanos === "sim") {
-            texto += `O valor da causa é de R$ ${valorCausa.toFixed(2)}. A parcela relativa aos danos morais representa ${(
-                proporcaoDanos * 100
-            ).toFixed(2)}% do montante total, sendo tal percentual integrado ao cálculo final da sucumbência.\n\n`;
-        }
-
-        texto += `Considerando os períodos postulados e aqueles reconhecidos na presente sentença, verifica-se que a parte autora obteve êxito equivalente a ${(
-            proporcao * 100
-        ).toFixed(2)}% dos pedidos. Consequentemente, o INSS decaiu na proporção correspondente.\n\n`;
-
-        if (minimaAutor && !minimaINSS) {
-            texto +=
-                "O decaimento da parte autora é inferior ao limite de 10%. Assim, reconhece-se sucumbência mínima em seu favor, nos termos do art. 86, parágrafo único, do CPC. Em razão disso, somente o INSS arcará com os ônus sucumbenciais.\n\n";
-
-            texto += `Condeno o INSS ao pagamento de honorários advocatícios, fixados em ${pct}% sobre o valor da condenação, na forma do art. 85, §§ 2º e 3º, do CPC.`;
-
-            return (document.getElementById("resultado").textContent = texto);
-        }
-
-        if (minimaINSS && !minimaAutor) {
-            texto +=
-                "O decaimento do INSS é inferior ao limite de 10%. Assim, reconhece-se sucumbência mínima em seu favor, nos termos do art. 86, parágrafo único, do CPC. Em razão disso, somente a parte autora arcará com os ônus sucumbenciais.\n\n";
-
-            if (ajg === "sim") {
-                texto +=
-                    "A parte autora é beneficiária da gratuidade da justiça. A condenação subsiste, mas sua exigibilidade permanece suspensa, nos termos do art. 98, §3º, do CPC.\n\n";
-            }
-
-            texto += `Condeno a parte autora ao pagamento de honorários advocatícios, fixados em ${pct}% sobre o valor atualizado da causa.`;
-            return (document.getElementById("resultado").textContent = texto);
-        }
-
-        /* Sucumbência proporcional */
-        texto +=
-            "Havendo decaimento significativo de ambas as partes, aplica-se o art. 86 do CPC, fixando-se a sucumbência de forma proporcional.\n\n";
-
-        let autPerc = (sucAutor * pct).toFixed(2);
-        let inssPerc = (sucINSS * pct).toFixed(2);
-
-        texto += `Honorários devidos pela parte autora: ${autPerc}% do valor atualizado da causa.\n`;
-        texto += `Honorários devidos pelo INSS: ${inssPerc}% sobre o valor da condenação.\n\n`;
-
-        if (ajg === "sim") {
-            texto +=
-                "A parte autora é beneficiária da gratuidade da justiça. Sua parcela de responsabilidade permanece com exigibilidade suspensa, nos termos do art. 98, §3º, do CPC, cabendo ao INSS o ressarcimento das custas adiantadas pela autora, na fração correspondente ao seu decaimento.\n";
-        }
-
-        return (document.getElementById("resultado").textContent = texto);
-    }
-
-    /* --------------------------
-       Minuta – Improcedência
-    ----------------------------*/
     texto += "III – Da Sucumbência\n\n";
 
-    texto +=
-        "Diante da improcedência dos pedidos, a parte autora deve arcar integralmente com os ônus sucumbenciais, nos termos dos arts. 85 e 86 do CPC.\n\n";
-
-    texto += `Fixo os honorários advocatícios em ${pct}% sobre o valor atualizado da causa.\n\n`;
-
-    if (ajg === "sim") {
+    if (sucumbenciaMinima === "autor") {
         texto +=
-            "A parte autora é beneficiária da gratuidade da justiça. A condenação subsiste, mas sua exigibilidade fica suspensa, conforme art. 98, §3º, do CPC.\n";
+`A parte autora decaiu de parcela mínima do pedido (inferior a 10%), razão pela qual, nos termos do art. 86, parágrafo único, do CPC, a sucumbência é integralmente atribuída ao INSS.\n\n`;
+    } else if (sucumbenciaMinima === "inss") {
+        texto +=
+`O INSS decaiu de parcela mínima do pedido (inferior a 10%), razão pela qual, nos termos do art. 86, parágrafo único, do CPC, a sucumbência é integralmente atribuída à parte autora.\n\n`;
+    } else {
+        texto +=
+`Considerando a proporção entre os pedidos formulados e aqueles efetivamente acolhidos, verifica-se que a parte autora obteve êxito equivalente a ${Math.round(proporcaoFinalAutor*10000)/100}%. Assim, ambas as partes decaíram em medida significativa, impondo-se a distribuição proporcional dos ônus da sucumbência, nos termos do art. 86 do CPC.\n\n`;
     }
 
-    document.getElementById("resultado").textContent = texto;
+    // ------------------------
+    // HONORÁRIOS DO AUTOR
+    // ------------------------
+    if (beneficioConcedido) {
+        texto += `Honorários devidos pela parte autora: ${percAutor}% sobre o valor da condenação (Súmula 111 do STJ).\n`;
+    } else {
+        texto += `Honorários devidos pela parte autora: ${percAutor}% sobre o valor atualizado da causa.\n`;
+    }
+
+    // ------------------------
+    // HONORÁRIOS DO INSS
+    // ------------------------
+    texto += `Honorários devidos pelo INSS: ${percINSS}% sobre o valor atualizado da causa.\n\n`;
+
+    // ------------------------
+    // AJG
+    // ------------------------
+    if (ajg) {
+        texto +=
+`A parte autora é beneficiária da gratuidade da justiça. Sua responsabilidade pela verba honorária permanece com exigibilidade suspensa, nos termos do art. 98, §3º, do CPC, cabendo ao INSS o ressarcimento das custas eventualmente adiantadas pela autora, na fração correspondente ao seu decaimento.\n`;
+    } else {
+        texto +=
+`Não havendo gratuidade da justiça, cada parte arcará com a verba honorária na proporção acima delimitada.\n`;
+    }
+
+    document.getElementById("resultado").innerText = texto;
 }
+
 </script>
 
 </body>
