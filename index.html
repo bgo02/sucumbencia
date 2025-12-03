@@ -11,7 +11,7 @@
         color: #222;
         max-width: 900px;
     }
-    h1 { text-align: center; font-size: 26px; margin-bottom: 20px; }
+    h1 { text-align: center; margin-bottom: 28px; }
     textarea, input, select {
         width: 100%; padding: 10px; margin-top: 6px; margin-bottom: 16px;
         border: 1px solid #bbb; border-radius: 4px; font-size: 15px;
@@ -31,26 +31,31 @@
 <body>
 <h1>Calculadora de Sucumbência Previdenciária</h1>
 
-<label><b>1) Valor total da causa (R$)</b></label>
-<input id="valorCausa" type="number" placeholder="Exemplo: 50000">
-
-<label><b>2) Valor pedido a título de danos morais (R$)</b></label>
-<input id="danosMorais" type="number" placeholder="Exemplo: 10000">
-
-<label><b>3) Períodos discutidos (cole qualquer coisa: tabelas, listas, frases etc.)</b></label>
-<textarea id="periodosBrutos" rows="7" placeholder="Cole aqui os períodos, em qualquer formato. O sistema limpará automaticamente."></textarea>
-
-<label><b>4) Períodos reconhecidos (cole qualquer formato)</b></label>
-<textarea id="periodosReconhecidos" rows="7" placeholder="Cole apenas os períodos reconhecidos, em qualquer formato."></textarea>
-
-<label><b>5) A parte autora possui AJG?</b></label>
+<label><b>A parte autora possui AJG?</b></label>
 <select id="ajg">
+    <option value="sim" selected>Sim</option>
     <option value="nao">Não</option>
-    <option value="sim">Sim</option>
 </select>
 
-<label><b>6) Percentual-base dos honorários (ex.: 10)</b></label>
-<input id="percentualHonorarios" type="number" placeholder="10">
+<label><b>Há pedido de danos morais?</b></label>
+<select id="temDanos" onchange="toggleDanos()">
+    <option value="sim">Sim</option>
+    <option value="nao">Não</option>
+</select>
+
+<div id="camposDanos">
+    <label><b>Valor total da causa (R$)</b></label>
+    <input id="valorCausa" type="number" placeholder="Ex.: 50000">
+
+    <label><b>Valor pedido a título de danos morais (R$)</b></label>
+    <input id="danosMorais" type="number" placeholder="Ex.: 10000">
+</div>
+
+<label><b>Períodos discutidos (cole qualquer formato)</b></label>
+<textarea id="periodosBrutos" rows="7" placeholder="Cole aqui os períodos discutidos. O sistema limpará automaticamente."></textarea>
+
+<label><b>Períodos reconhecidos (cole qualquer formato)</b></label>
+<textarea id="periodosReconhecidos" rows="7" placeholder="Cole os períodos reconhecidos."></textarea>
 
 <button onclick="calcular()">Calcular Sucumbência</button>
 
@@ -58,17 +63,24 @@
 
 <script>
 // --------------------------------------------------------------
-// FUNÇÕES DE LIMPEZA E EXTRAÇÃO DE PERÍODOS
+// EXIBIÇÃO DINÂMICA DOS CAMPOS DE DANOS MORAIS
+// --------------------------------------------------------------
+function toggleDanos() {
+    const tem = document.getElementById("temDanos").value;
+    document.getElementById("camposDanos").style.display = tem === "sim" ? "block" : "none";
+}
+toggleDanos();
+
+// --------------------------------------------------------------
+// PARSER DE PERÍODOS
 // --------------------------------------------------------------
 function extrairDatas(texto) {
-    // captura datas dd/mm/yyyy
     const regex = /(\d{1,2}\/\d{1,2}\/\d{4})\s*(?:a|-|–|—|ao)\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi;
-    let match;
-    const periodos = [];
+    let match, arr = [];
     while ((match = regex.exec(texto)) !== null) {
-        periodos.push({ inicio: match[1], fim: match[2] });
+        arr.push({inicio: match[1], fim: match[2]});
     }
-    return periodos;
+    return arr;
 }
 
 function somarDias(periodos) {
@@ -76,95 +88,106 @@ function somarDias(periodos) {
     for (const p of periodos) {
         const i = new Date(p.inicio.split("/").reverse().join("-"));
         const f = new Date(p.fim.split("/").reverse().join("-"));
-        if (!isNaN(i) && !isNaN(f) && f >= i) {
-            const dias = (f - i) / (1000 * 60 * 60 * 24) + 1;
-            total += dias;
-        }
+        if (!isNaN(i) && !isNaN(f) && f >= i)
+            total += Math.floor((f - i)/(1000*60*60*24)) + 1;
     }
     return total;
+}
+
+// danos morais reconhecidos proporcionalmente aos materiais
+function danosMoraisReconhecidos(dm, proporcaoMateriais) {
+    return dm * proporcaoMateriais;
 }
 
 // --------------------------------------------------------------
 // CÁLCULO PRINCIPAL
 // --------------------------------------------------------------
 function calcular() {
-    const valorCausa   = Number(document.getElementById("valorCausa").value);
-    const danosMorais  = Number(document.getElementById("danosMorais").value);
-    const ajg          = document.getElementById("ajg").value;
-    const basePercent  = Number(document.getElementById("percentualHonorarios").value);
 
-    const todosPeriodos = extrairDatas(document.getElementById("periodosBrutos").value);
-    const reconhecidos  = extrairDatas(document.getElementById("periodosReconhecidos").value);
+    const honorariosBase = 10; // fixo conforme solicitado
+    const ajg = document.getElementById("ajg").value;
+    const temDanos = document.getElementById("temDanos").value;
+
+    const todosPeriodos     = extrairDatas(document.getElementById("periodosBrutos").value);
+    const periodosReconhec  = extrairDatas(document.getElementById("periodosReconhecidos").value);
 
     const totalDias = somarDias(todosPeriodos);
-    const diasReconhecidos = somarDias(reconhecidos);
+    const diasRec   = somarDias(periodosReconhec);
 
-    // proporção dos pedidos materiais (períodos)
-    const proporcaoMateriais = totalDias > 0 ? diasReconhecidos / totalDias : 0;
+    const proporcaoMateriais = totalDias > 0 ? diasRec / totalDias : 0;
 
-    // cálculo da proporção global da procedência (materiais + danos morais)
-    const valorMateriais = valorCausa - danosMorais;
+    let ganhoAutora = proporcaoMateriais; // default quando não há danos morais
 
-    let ganhoAutora = 0;
-    if (valorMateriais > 0) {
-        ganhoAutora =
-            (proporcaoMateriais * valorMateriais + danosMoraisReconhecidos(danosMorais, proporcaoMateriais))
-            / valorCausa;
+    let valorCausa = 0, danosMorais = 0, valorMateriais = 0;
+
+    if (temDanos === "sim") {
+        valorCausa = Number(document.getElementById("valorCausa").value);
+        danosMorais = Number(document.getElementById("danosMorais").value);
+        valorMateriais = valorCausa - danosMorais;
+
+        ganhoAutora = (
+            (proporcaoMateriais * valorMateriais) +
+            danosMoraisReconhecidos(danosMorais, proporcaoMateriais)
+        ) / valorCausa;
     }
 
-    // sucumbência mínima (<10%)
-    let textoSucumbencia = "";
-    let honorariosAutora = 0;
-    let honorariosINSS = 0;
+    // ----------------------------------------------------------
+    // SUCUMBÊNCIA MÍNIMA (<10%)
+    // ----------------------------------------------------------
+    let textoSuc = "";
+    let honorAut  = 0;
+    let honorINSS = 0;
 
     if (ganhoAutora < 0.10) {
-        textoSucumbencia =
-            "A sucumbência da parte autora é inferior a 10% do proveito econômico pretendido. Trata-se, portanto, de sucumbência mínima. " +
-            "Assim, apenas o INSS suportará integralmente os ônus sucumbenciais.";
-        honorariosINSS = basePercent;
-        honorariosAutora = 0;
-    } else if (ganhoAutora > 0.90) {
-        textoSucumbencia =
-            "A sucumbência do INSS é inferior a 10% do total controvertido, configurando sucumbência mínima. " +
-            "Assim, somente a parte autora suportará os ônus sucumbenciais.";
-        honorariosAutora = basePercent;
-        honorariosINSS = 0;
-    } else {
-        const percAutora = (1 - ganhoAutora) * basePercent;
-        const percINSS   = ganhoAutora * basePercent;
-        honorariosAutora = percAutora;
-        honorariosINSS   = percINSS;
-        textoSucumbencia =
-            "Ambas as partes decaíram de forma significativa de seus pedidos e defesas. A distribuição dos ônus sucumbenciais deve ocorrer de forma proporcional a cada decaimento.";
+        textoSuc = 
+            "A parte autora decaiu de mais de 90% do pedido, configurando sucumbência mínima. " +
+            "Assim, somente o INSS arcará integralmente com a verba honorária.";
+        honorINSS = honorariosBase;
+    }
+    else if (ganhoAutora > 0.90) {
+        textoSuc = 
+            "O INSS decaiu de mais de 90% do pedido, caracterizando sucumbência mínima. " +
+            "Portanto, apenas a parte autora suportará integralmente a verba honorária.";
+        honorAut = honorariosBase;
+    }
+    else {
+        textoSuc = 
+            "Os pedidos foram acolhidos e rejeitados de forma significativa por ambas as partes. " +
+            "A distribuição dos ônus sucumbenciais deve ser proporcional ao decaimento de cada uma.";
+        honorAut  = (1 - ganhoAutora) * honorariosBase;
+        honorINSS = ganhoAutora * honorariosBase;
     }
 
+    // arredondamentos adequados
+    honorAut  = Math.round(honorAut * 100)/100;
+    honorINSS = Math.round(honorINSS * 100)/100;
+
+    // ----------------------------------------------------------
     // AJG
+    // ----------------------------------------------------------
     let textoAJG = "";
     if (ajg === "sim") {
         textoAJG =
-            "A parte autora é beneficiária da gratuidade da justiça, razão pela qual a condenação referente à sua parcela de sucumbência não é suspensa, mas será exigível normalmente. " +
-            "O INSS deverá ressarcir a parte autora pelas custas que esta houver adiantado, na proporção correspondente.";
+            "A parte autora é beneficiária da gratuidade da justiça. " +
+            "Sua responsabilidade pela verba honorária permanece exigível, sem suspensão, " +
+            "e o INSS deverá ressarcir-lhe as custas eventualmente adiantadas, na proporção correspondente.";
     }
 
-    // Resultado final
-    let resultado = "";
-    resultado += "Resultado do Cálculo da Sucumbência\n\n";
-    resultado += `Proporção total reconhecida: ${(ganhoAutora*100).toFixed(2)}%\n\n`;
-    resultado += textoSucumbencia + "\n\n";
+    // ----------------------------------------------------------
+    // RESULTADO FINAL
+    // ----------------------------------------------------------
+    let r = "Resultado do Cálculo da Sucumbência\n\n";
+    r += `Proporção total reconhecida em favor da parte autora: ${(ganhoAutora*100).toFixed(2)}%\n\n`;
+    r += textoSuc + "\n\n";
 
-    if (honorariosAutora > 0)
-        resultado += `Honorários devidos pela parte autora: ${honorariosAutora.toFixed(2)}% do valor da causa.\n`;
-    if (honorariosINSS > 0)
-        resultado += `Honorários devidos pelo INSS: ${honorariosINSS.toFixed(2)}% do valor da causa.\n`;
+    if (honorAut > 0)
+        r += `Honorários devidos pela parte autora: ${honorAut}% do valor da causa.\n`;
+    if (honorINSS > 0)
+        r += `Honorários devidos pelo INSS: ${honorINSS}% do valor da causa.\n`;
 
-    if (ajg === "sim") resultado += "\n" + textoAJG;
+    if (ajg === "sim") r += "\n" + textoAJG;
 
-    document.getElementById("resultado").innerText = resultado;
-}
-
-// danos morais reconhecidos proporcionalmente aos materiais
-function danosMoraisReconhecidos(dm, proporcaoMateriais) {
-    return dm * proporcaoMateriais;
+    document.getElementById("resultado").innerText = r;
 }
 </script>
 
