@@ -1,29 +1,63 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
-<meta charset="UTF-8">
-<title>Calculadora de Sucumbência Previdenciária</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Calculadora de Sucumbência – Previdenciário</title>
+
 <style>
     body {
         font-family: Arial, sans-serif;
-        margin: 40px;
-        background: #fafafa;
-        color: #222;
+        margin: 0 auto;
+        padding: 20px;
         max-width: 900px;
+        background: #f6f6f6;
     }
-    h1 { text-align: center; margin-bottom: 28px; }
+
+    h1 {
+        text-align: center;
+        font-size: 26px;
+        margin-bottom: 25px;
+    }
+
     textarea, input, select {
-        width: 100%; padding: 10px; margin-top: 6px; margin-bottom: 16px;
-        border: 1px solid #bbb; border-radius: 4px; font-size: 15px;
+        width: 100%;
+        padding: 8px;
+        font-size: 15px;
+        margin-top: 5px;
+        margin-bottom: 15px;
     }
+
     button {
-        background: #333; color: #fff; border: none; padding: 12px 18px;
-        font-size: 16px; cursor: pointer; border-radius: 5px;
+        background: #1d4ed8;
+        color: white;
+        padding: 12px 20px;
+        border: none;
+        font-size: 16px;
+        cursor: pointer;
+        width: 100%;
     }
-    button:hover { background: #111; }
-    .result-box {
-        background: #fff; padding: 20px; border-radius: 8px;
-        border: 1px solid #ccc; margin-top: 30px; white-space: pre-wrap;
+
+    button:hover {
+        background: #123ea3;
+    }
+
+    .box {
+        background: white;
+        padding: 20px;
+        border-radius: 6px;
+        margin-bottom: 25px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+    }
+
+    .resultado {
+        white-space: pre-wrap;
+        background: #fff;
+        padding: 20px;
+        border-radius: 6px;
+        font-size: 15.5px;
+        line-height: 1.45;
+        border: 1px solid #ddd;
     }
 </style>
 </head>
@@ -31,163 +65,207 @@
 <body>
 <h1>Calculadora de Sucumbência Previdenciária</h1>
 
-<label><b>A parte autora possui AJG?</b></label>
-<select id="ajg">
-    <option value="sim" selected>Sim</option>
-    <option value="nao">Não</option>
-</select>
+<div class="box">
+    <label>Períodos postulados (cole de qualquer jeito):</label>
+    <textarea id="entradaPeriodos" placeholder="Exemplos de colagem:
+06/03/1989 a 25/12/1990 – Tempo especial – Empregado
+OU
+Período controvertido 06/03/1989 a 25/12/1990 Tempo especial Empregado
+OU
+01/09/2000 a 30/09/2000, 01/10/2000 a 30/04/2004 ..."></textarea>
 
-<label><b>Há pedido de danos morais?</b></label>
-<select id="temDanos" onchange="toggleDanos()">
-    <option value="sim">Sim</option>
-    <option value="nao">Não</option>
-</select>
+    <label>Períodos reconhecidos na sentença (também pode colar bagunçado):</label>
+    <textarea id="entradaReconhecidos" placeholder="Cole os períodos efetivamente reconhecidos na sentença"></textarea>
 
-<div id="camposDanos">
-    <label><b>Valor total da causa (R$)</b></label>
-    <input id="valorCausa" type="number" placeholder="Ex.: 50000">
+    <label>Parte autora possui AJG?</label>
+    <select id="ajg">
+        <option value="sim" selected>Sim</option>
+        <option value="nao">Não</option>
+    </select>
 
-    <label><b>Valor pedido a título de danos morais (R$)</b></label>
-    <input id="danosMorais" type="number" placeholder="Ex.: 10000">
+    <label>Há pedido de danos morais?</label>
+    <select id="temDanos" onchange="toggleDanos()">
+        <option value="nao" selected>Não</option>
+        <option value="sim">Sim</option>
+    </select>
+
+    <div id="camposDanos" style="display:none;">
+        <label>Valor da causa:</label>
+        <input type="number" id="valorCausa" placeholder="Informe o valor total da causa">
+
+        <label>Valor pedido a título de danos morais:</label>
+        <input type="number" id="valorDanos" placeholder="Valor dos danos morais">
+    </div>
+
+    <label>O pedido principal foi julgado procedente?</label>
+    <select id="concessao">
+        <option value="sim">Sim – Concessão de Benefício</option>
+        <option value="nao">Não – Improcedência</option>
+    </select>
+
+    <button onclick="calcular()">Gerar Minuta Completa</button>
 </div>
 
-<label><b>Períodos discutidos (cole qualquer formato)</b></label>
-<textarea id="periodosBrutos" rows="7" placeholder="Cole aqui os períodos discutidos. O sistema limpará automaticamente."></textarea>
+<h2>Resultado</h2>
+<div class="resultado" id="resultado"></div>
 
-<label><b>Períodos reconhecidos (cole qualquer formato)</b></label>
-<textarea id="periodosReconhecidos" rows="7" placeholder="Cole os períodos reconhecidos."></textarea>
-
-<button onclick="calcular()">Calcular Sucumbência</button>
-
-<div id="resultado" class="result-box"></div>
 
 <script>
-// --------------------------------------------------------------
-// EXIBIÇÃO DINÂMICA DOS CAMPOS DE DANOS MORAIS
-// --------------------------------------------------------------
+/* --------------------------
+   FUNÇÃO: limpar texto colado
+----------------------------*/
+function extrairPeriodos(texto) {
+    texto = texto.replace(/\s+/g, " ");
+
+    const regex = /(\d{2}\/\d{2}\/\d{4})\s*(?:a|-|–)\s*(\d{2}\/\d{2}\/\d{4})/gi;
+    let periodos = [];
+    let m;
+
+    while ((m = regex.exec(texto)) !== null) {
+        periodos.push({ ini: m[1], fim: m[2] });
+    }
+    return periodos;
+}
+
+/* --------------------------
+   Cálculo de dias
+----------------------------*/
+function diasEntre(d1, d2) {
+    const a = new Date(d1.split("/").reverse().join("-"));
+    const b = new Date(d2.split("/").reverse().join("-"));
+    return (b - a) / 86400000 + 1;
+}
+
+/* --------------------------
+   Toggle danos morais
+----------------------------*/
 function toggleDanos() {
+    const d = document.getElementById("camposDanos");
     const tem = document.getElementById("temDanos").value;
-    document.getElementById("camposDanos").style.display = tem === "sim" ? "block" : "none";
-}
-toggleDanos();
-
-// --------------------------------------------------------------
-// PARSER DE PERÍODOS
-// --------------------------------------------------------------
-function extrairDatas(texto) {
-    const regex = /(\d{1,2}\/\d{1,2}\/\d{4})\s*(?:a|-|–|—|ao)\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi;
-    let match, arr = [];
-    while ((match = regex.exec(texto)) !== null) {
-        arr.push({inicio: match[1], fim: match[2]});
-    }
-    return arr;
+    d.style.display = tem === "sim" ? "block" : "none";
 }
 
-function somarDias(periodos) {
-    let total = 0;
-    for (const p of periodos) {
-        const i = new Date(p.inicio.split("/").reverse().join("-"));
-        const f = new Date(p.fim.split("/").reverse().join("-"));
-        if (!isNaN(i) && !isNaN(f) && f >= i)
-            total += Math.floor((f - i)/(1000*60*60*24)) + 1;
-    }
-    return total;
-}
-
-// danos morais reconhecidos proporcionalmente aos materiais
-function danosMoraisReconhecidos(dm, proporcaoMateriais) {
-    return dm * proporcaoMateriais;
-}
-
-// --------------------------------------------------------------
-// CÁLCULO PRINCIPAL
-// --------------------------------------------------------------
+/* --------------------------
+   Cálculo da sucumbência
+----------------------------*/
 function calcular() {
+    const pedidos = extrairPeriodos(document.getElementById("entradaPeriodos").value);
+    const reconhecidos = extrairPeriodos(document.getElementById("entradaReconhecidos").value);
 
-    const honorariosBase = 10; // fixo conforme solicitado
     const ajg = document.getElementById("ajg").value;
     const temDanos = document.getElementById("temDanos").value;
+    const concessao = document.getElementById("concessao").value;
 
-    const todosPeriodos     = extrairDatas(document.getElementById("periodosBrutos").value);
-    const periodosReconhec  = extrairDatas(document.getElementById("periodosReconhecidos").value);
+    if (pedidos.length === 0) {
+        document.getElementById("resultado").textContent = "Nenhum período válido identificado nos pedidos.";
+        return;
+    }
 
-    const totalDias = somarDias(todosPeriodos);
-    const diasRec   = somarDias(periodosReconhec);
+    /* Cálculo dos dias postulados e reconhecidos */
+    let totalDias = 0;
+    pedidos.forEach(p => totalDias += diasEntre(p.ini, p.fim));
 
-    const proporcaoMateriais = totalDias > 0 ? diasRec / totalDias : 0;
+    let diasReconhecidos = 0;
+    reconhecidos.forEach(r => diasReconhecidos += diasEntre(r.ini, r.fim));
 
-    let ganhoAutora = proporcaoMateriais; // default quando não há danos morais
+    /* Proporção */
+    let proporcao = diasReconhecidos / totalDias;
+    if (proporcao > 1) proporcao = 1;
 
-    let valorCausa = 0, danosMorais = 0, valorMateriais = 0;
+    let sucAutor = 1 - proporcao;
+    let sucINSS = proporcao;
+
+    /* Danos morais */
+    let valorCausa = 0, valorDanos = 0, proporcaoDanos = 0;
 
     if (temDanos === "sim") {
-        valorCausa = Number(document.getElementById("valorCausa").value);
-        danosMorais = Number(document.getElementById("danosMorais").value);
-        valorMateriais = valorCausa - danosMorais;
-
-        ganhoAutora = (
-            (proporcaoMateriais * valorMateriais) +
-            danosMoraisReconhecidos(danosMorais, proporcaoMateriais)
-        ) / valorCausa;
+        valorCausa = Number(document.getElementById("valorCausa").value || 0);
+        valorDanos = Number(document.getElementById("valorDanos").value || 0);
+        proporcaoDanos = valorDanos / valorCausa;
     }
 
-    // ----------------------------------------------------------
-    // SUCUMBÊNCIA MÍNIMA (<10%)
-    // ----------------------------------------------------------
-    let textoSuc = "";
-    let honorAut  = 0;
-    let honorINSS = 0;
+    /* Honorários fixos 10% */
+    const pct = 10;
 
-    if (ganhoAutora < 0.10) {
-        textoSuc = 
-            "A parte autora decaiu de mais de 90% do pedido, configurando sucumbência mínima. " +
-            "Assim, somente o INSS arcará integralmente com a verba honorária.";
-        honorINSS = honorariosBase;
-    }
-    else if (ganhoAutora > 0.90) {
-        textoSuc = 
-            "O INSS decaiu de mais de 90% do pedido, caracterizando sucumbência mínima. " +
-            "Portanto, apenas a parte autora suportará integralmente a verba honorária.";
-        honorAut = honorariosBase;
-    }
-    else {
-        textoSuc = 
-            "Os pedidos foram acolhidos e rejeitados de forma significativa por ambas as partes. " +
-            "A distribuição dos ônus sucumbenciais deve ser proporcional ao decaimento de cada uma.";
-        honorAut  = (1 - ganhoAutora) * honorariosBase;
-        honorINSS = ganhoAutora * honorariosBase;
+    /* Sucumbência mínima (<10%) */
+    let minimaAutor = sucAutor < 0.10;
+    let minimaINSS = sucINSS < 0.10;
+
+    /* Texto jurídico */
+    let texto = "";
+
+    /* --------------------------
+       Minuta - Concessão
+    ----------------------------*/
+    if (concessao === "sim") {
+        texto += "III – Da Sucumbência\n\n";
+
+        if (temDanos === "sim") {
+            texto += `O valor da causa é de R$ ${valorCausa.toFixed(2)}. A parcela relativa aos danos morais representa ${(
+                proporcaoDanos * 100
+            ).toFixed(2)}% do montante total, sendo tal percentual integrado ao cálculo final da sucumbência.\n\n`;
+        }
+
+        texto += `Considerando os períodos postulados e aqueles reconhecidos na presente sentença, verifica-se que a parte autora obteve êxito equivalente a ${(
+            proporcao * 100
+        ).toFixed(2)}% dos pedidos. Consequentemente, o INSS decaiu na proporção correspondente.\n\n`;
+
+        if (minimaAutor && !minimaINSS) {
+            texto +=
+                "O decaimento da parte autora é inferior ao limite de 10%. Assim, reconhece-se sucumbência mínima em seu favor, nos termos do art. 86, parágrafo único, do CPC. Em razão disso, somente o INSS arcará com os ônus sucumbenciais.\n\n";
+
+            texto += `Condeno o INSS ao pagamento de honorários advocatícios, fixados em ${pct}% sobre o valor da condenação, na forma do art. 85, §§ 2º e 3º, do CPC.`;
+
+            return (document.getElementById("resultado").textContent = texto);
+        }
+
+        if (minimaINSS && !minimaAutor) {
+            texto +=
+                "O decaimento do INSS é inferior ao limite de 10%. Assim, reconhece-se sucumbência mínima em seu favor, nos termos do art. 86, parágrafo único, do CPC. Em razão disso, somente a parte autora arcará com os ônus sucumbenciais.\n\n";
+
+            if (ajg === "sim") {
+                texto +=
+                    "A parte autora é beneficiária da gratuidade da justiça. A condenação subsiste, mas sua exigibilidade permanece suspensa, nos termos do art. 98, §3º, do CPC.\n\n";
+            }
+
+            texto += `Condeno a parte autora ao pagamento de honorários advocatícios, fixados em ${pct}% sobre o valor atualizado da causa.`;
+            return (document.getElementById("resultado").textContent = texto);
+        }
+
+        /* Sucumbência proporcional */
+        texto +=
+            "Havendo decaimento significativo de ambas as partes, aplica-se o art. 86 do CPC, fixando-se a sucumbência de forma proporcional.\n\n";
+
+        let autPerc = (sucAutor * pct).toFixed(2);
+        let inssPerc = (sucINSS * pct).toFixed(2);
+
+        texto += `Honorários devidos pela parte autora: ${autPerc}% do valor atualizado da causa.\n`;
+        texto += `Honorários devidos pelo INSS: ${inssPerc}% sobre o valor da condenação.\n\n`;
+
+        if (ajg === "sim") {
+            texto +=
+                "A parte autora é beneficiária da gratuidade da justiça. Sua parcela de responsabilidade permanece com exigibilidade suspensa, nos termos do art. 98, §3º, do CPC, cabendo ao INSS o ressarcimento das custas adiantadas pela autora, na fração correspondente ao seu decaimento.\n";
+        }
+
+        return (document.getElementById("resultado").textContent = texto);
     }
 
-    // arredondamentos adequados
-    honorAut  = Math.round(honorAut * 100)/100;
-    honorINSS = Math.round(honorINSS * 100)/100;
+    /* --------------------------
+       Minuta – Improcedência
+    ----------------------------*/
+    texto += "III – Da Sucumbência\n\n";
 
-    // ----------------------------------------------------------
-    // AJG
-    // ----------------------------------------------------------
-    let textoAJG = "";
+    texto +=
+        "Diante da improcedência dos pedidos, a parte autora deve arcar integralmente com os ônus sucumbenciais, nos termos dos arts. 85 e 86 do CPC.\n\n";
+
+    texto += `Fixo os honorários advocatícios em ${pct}% sobre o valor atualizado da causa.\n\n`;
+
     if (ajg === "sim") {
-        textoAJG =
-            "A parte autora é beneficiária da gratuidade da justiça. " +
-            "Sua responsabilidade pela verba honorária permanece exigível, sem suspensão, " +
-            "e o INSS deverá ressarcir-lhe as custas eventualmente adiantadas, na proporção correspondente.";
+        texto +=
+            "A parte autora é beneficiária da gratuidade da justiça. A condenação subsiste, mas sua exigibilidade fica suspensa, conforme art. 98, §3º, do CPC.\n";
     }
 
-    // ----------------------------------------------------------
-    // RESULTADO FINAL
-    // ----------------------------------------------------------
-    let r = "Resultado do Cálculo da Sucumbência\n\n";
-    r += `Proporção total reconhecida em favor da parte autora: ${(ganhoAutora*100).toFixed(2)}%\n\n`;
-    r += textoSuc + "\n\n";
-
-    if (honorAut > 0)
-        r += `Honorários devidos pela parte autora: ${honorAut}% do valor da causa.\n`;
-    if (honorINSS > 0)
-        r += `Honorários devidos pelo INSS: ${honorINSS}% do valor da causa.\n`;
-
-    if (ajg === "sim") r += "\n" + textoAJG;
-
-    document.getElementById("resultado").innerText = r;
+    document.getElementById("resultado").textContent = texto;
 }
 </script>
 
