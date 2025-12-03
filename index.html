@@ -210,7 +210,7 @@ function computeMinuta(opts){
 
   if(opts.houveBeneficio){
     // versão concessão (Súmula 111 aplicável: honorários incidentes sobre condenação)
-    minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço${opts.houveDanos ? ' e o pedido de danos morais (considerado na proporcionalidade, por ter sido suscitada)' : ''}, a parte autora obteve êxito ponderado de ${roundTo(authorShare*100,1).toFixed(1)}% sobre a demanda.\n\n`;
+    minuta += `Apurada a proporcionalidade da sucumbência, considerando o êxito da parte autora nos pedidos de reconhecimento de tempo de serviço${opts.houveDanos ? ' e a improcedência do pedido de danos morais' : ''}, a parte autora obteve êxito ponderado de ${roundTo(authorShare*100,1).toFixed(1)}% sobre a demanda.\n\n`;
     minuta += `Em razão da sucumbência recíproca, fixo a verba honorária ${baseText}.\n\n`;
 
     // casos:
